@@ -59,7 +59,7 @@ export async function initializeDatabase(): Promise<void> {
   if (!remote) return;
   if (!ready) {
     ready = remote
-      .execute("PRAGMA user_version")
+      .execute({sql: "SELECT value FROM settings WHERE key=?", args:["schemaVersion"]})
       .then((result) => {
         if (Number(result.rows[0]?.[0]) !== schemaVersion)
           throw new Error(

@@ -31,12 +31,13 @@ try {
   const tx = await client.transaction("write");
   try {
     stage = "schema DDL execution";
-    await tx.batch(schemaSQL.split(";").map(sql => sql.trim()).filter(Boolean));
+    await tx.batch(schemaSQL.split(";").map(sql => sql.trim()).filter(sql => sql && !sql.startsWith("PRAGMA")));
     stage = "store settings initialization";
     await tx.execute({
       sql: "INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)",
       args: ["store", JSON.stringify(defaultStore)],
     });
+    await tx.execute({sql:"INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)",args:["schemaVersion",String(schemaVersion)]});
     stage = "schema transaction commit";
     await tx.commit();
   } catch (error) {
