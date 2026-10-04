@@ -17,6 +17,7 @@ try {
     intMode: "number",
   });
   stage = "schema migration";
+  stage = "schema version read";
   const version = Number(
     (await client.execute("PRAGMA user_version")).rows[0][0],
   );
@@ -26,13 +27,17 @@ try {
     "../src/db.ts"
   );
   database = db;
+  stage = "schema write transaction";
   const tx = await client.transaction("write");
   try {
+    stage = "schema DDL execution";
     await tx.executeMultiple(schemaSQL);
+    stage = "store settings initialization";
     await tx.execute({
       sql: "INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)",
       args: ["store", JSON.stringify(defaultStore)],
     });
+    stage = "schema transaction commit";
     await tx.commit();
   } catch (error) {
     if (!tx.closed) await tx.rollback();
@@ -40,6 +45,7 @@ try {
   } finally {
     tx.close();
   }
+  stage = "foreign key configuration";
   if (Number((await client.execute("PRAGMA foreign_keys")).rows[0][0]) !== 1)
     throw new Error("Foreign key protection is required");
   console.log(`Permanent database schema ready: ${schemaVersion}`);
@@ -272,6 +278,12 @@ try {
     error instanceof Error ? error.name : "unknown",
     typeof error?.code === "string" ? error.code : "",
   );
+  if (error?.code === "SERVER_ERROR" || error?.code?.startsWith("SQLITE_")) {
+    const detail = String(error.message || "").replace(/(?:https?|libsql):\/\/[^\s]+/g,"[provider]")
+      .replace(/[A-Za-z0-9_.-]{40,}/g,"[redacted]")
+      .replace(/(?:token|password|authorization)\s*[:=]\s*[^\s,;]+/gi,"[credential redacted]").slice(0,400);
+    console.error("Database diagnostic:", detail);
+  }
   process.exitCode = 1;
 } finally {
   if (server) await new Promise((resolve) => server.close(resolve));
