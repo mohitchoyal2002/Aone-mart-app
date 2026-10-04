@@ -138,6 +138,10 @@ try:
     adb("shell", "wm", "dismiss-keyguard")
     adb("shell", "am", "start", "-n", PACKAGE + "/.MainActivity")
     wait("Connect to your mart", seconds=60)
+    primary = wait("Connect & continue", desc=True)
+    bounds = list(map(int, re.findall(r"\d+", primary.get("bounds"))))
+    assert bounds[3] - bounds[1] >= 77, "Primary button lost its native styles and minimum touch height"
+    passed("Native primary button has an accessible touch height")
     screenshot("01-connection")
     passed("Native app launches with connection screen")
     fill("https://api.yourmart.com", "http://127.0.0.1:4000")
