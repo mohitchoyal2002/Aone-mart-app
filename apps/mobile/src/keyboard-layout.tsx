@@ -1,4 +1,4 @@
-import React, { forwardRef } from "react";
+import React, { createContext, forwardRef, useState } from "react";
 import {
   KeyboardAwareScrollView,
   KeyboardToolbar,
@@ -8,19 +8,27 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // Leave room for the 42dp keyboard toolbar and a comfortable field gap.
 export const KEYBOARD_CLEARANCE = 60;
+export const FieldClearanceContext = createContext<(offset: number) => void>(
+  () => {},
+);
 
 export const FormScroll = forwardRef<
   KeyboardAwareScrollViewRef,
   React.ComponentProps<typeof KeyboardAwareScrollView>
->(function FormScroll(props, ref) {
+>(function FormScroll({ children, ...props }, ref) {
+  const [clearance, setClearance] = useState(KEYBOARD_CLEARANCE);
   return (
-    <KeyboardAwareScrollView
-      ref={ref}
-      bottomOffset={KEYBOARD_CLEARANCE}
-      keyboardShouldPersistTaps="handled"
-      keyboardDismissMode="on-drag"
-      {...props}
-    />
+    <FieldClearanceContext.Provider value={setClearance}>
+      <KeyboardAwareScrollView
+        ref={ref}
+        bottomOffset={clearance}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        {...props}
+      >
+        {children}
+      </KeyboardAwareScrollView>
+    </FieldClearanceContext.Provider>
   );
 });
 

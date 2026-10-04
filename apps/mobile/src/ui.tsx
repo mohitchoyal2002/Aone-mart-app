@@ -1,4 +1,4 @@
-import React, { forwardRef, useState } from "react";
+import React, { forwardRef, useContext, useState } from "react";
 import {
   Text,
   View,
@@ -23,7 +23,7 @@ import {
 } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAvoidingView, useKeyboardState } from "react-native-keyboard-controller";
-import { FormScroll, KeyboardTools } from "./keyboard-layout";
+import { FieldClearanceContext, FormScroll, KeyboardTools, KEYBOARD_CLEARANCE } from "./keyboard-layout";
 export const C = {
   ink: "#162B25",
   forest: "#1E5C43",
@@ -199,6 +199,7 @@ export const Input = forwardRef<TextInput, TextInputProps & {
   ...props
 }, ref) {
   const [focused, setFocused] = useState(false);
+  const setClearance = useContext(FieldClearanceContext);
   return (
     <View className="mb-[15px] gap-[7px]">
       {label && (
@@ -227,6 +228,12 @@ export const Input = forwardRef<TextInput, TextInputProps & {
           {...props}
           onFocus={(e) => {
             setFocused(true);
+            const minHeight = StyleSheet.flatten(props.style)?.minHeight;
+            // Keyboard-aware scrolling follows the caret. Keep the full first
+            // line of a tall note/address field above the toolbar as well.
+            setClearance(props.multiline
+              ? Math.max(KEYBOARD_CLEARANCE, typeof minHeight === "number" ? minHeight + 36 : 120)
+              : KEYBOARD_CLEARANCE);
             props.onFocus?.(e);
           }}
           onBlur={(e) => {
