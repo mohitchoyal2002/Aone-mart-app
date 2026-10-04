@@ -2,6 +2,7 @@ import "../global.css";
 import React from "react";
 import { View, Text, Pressable, ActivityIndicator } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import { NavigationBar } from "expo-navigation-bar";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { KeyboardTools } from "./keyboard-layout";
@@ -75,6 +76,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           preserveEdgeToEdge
         >
         <StatusBar style="dark" />
+        <NavigationBar style="dark" />
         <SafeAreaView
           edges={["top", "left", "right"]}
           style={{ flex: 1, backgroundColor: C.canvas }}

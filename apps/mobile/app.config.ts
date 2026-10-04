@@ -27,6 +27,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-router",
     "expo-font",
     "expo-system-ui",
+    ["expo-navigation-bar", { enforceContrast: false, style: "dark" }],
     [
       "expo-splash-screen",
       {

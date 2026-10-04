@@ -43,6 +43,7 @@ import {
 import { RevenueChart, CategoryBars, StockDonut } from "./charts";
 import { StatGrid, RangeBar, rangeDays } from "./admin-common";
 import { registerNotifications, notificationsEnabled } from "./realtime";
+import { KEYBOARD_CLEARANCE } from "./keyboard-layout";
 import type { Dashboard, Store, Session } from "./types";
 export function DashboardScreen({
   onInventory,
@@ -230,6 +231,7 @@ export function AiScreen() {
   const [messages, setMessages] = useState<ChatMessage[]>([]),
     [input, setInput] = useState(""),
     [busy, setBusy] = useState(false),
+    [composerFocused, setComposerFocused] = useState(false),
     [error, setError] = useState(""),
     [range, setRange] = useState(rangeDays(30)),
     [asOf, setAsOf] = useState("");
@@ -262,16 +264,16 @@ export function AiScreen() {
     <KeyboardAvoidingView
       behavior="padding"
       automaticOffset
-      keyboardVerticalOffset={42}
+      keyboardVerticalOffset={KEYBOARD_CLEARANCE}
       style={{ flex: 1, backgroundColor: C.canvas }}
     >
-      <View style={{ padding: 22, gap: 15 }}>
+      <View style={{ padding: composerFocused ? 12 : 22, gap: composerFocused ? 0 : 15 }}>
         <SectionTitle
           title="AI summary"
-          caption="Ask about your inventory, sales, customers and coupons."
+          caption={composerFocused ? undefined : "Ask about your inventory, sales, customers and coupons."}
         />
-        <RangeBar range={range} onChange={setRange} />
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+        {!composerFocused && <RangeBar range={range} onChange={setRange} />}
+        {!composerFocused && <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <Sparkles size={13} color={C.forest} />
           <T size={10} color={C.muted}>
             Live mart data · Read-only ·{" "}
@@ -283,7 +285,7 @@ export function AiScreen() {
                 })
               : "Gemini assistant"}
           </T>
-        </View>
+        </View>}
       </View>
       <ScrollView
         ref={scroll}
@@ -418,6 +420,8 @@ export function AiScreen() {
             placeholderTextColor={C.muted}
             value={input}
             onChangeText={setInput}
+            onFocus={() => setComposerFocused(true)}
+            onBlur={() => setComposerFocused(false)}
             maxLength={2000}
             style={{
               flex: 1,

@@ -530,13 +530,14 @@ export function Sheet({
       onRequestClose={close}
     >
       <KeyboardAvoidingView
-        behavior="padding"
+        behavior="height"
         automaticOffset
-        keyboardVerticalOffset={42}
+        keyboardVerticalOffset={KEYBOARD_CLEARANCE}
         style={{
           flex: 1,
           justifyContent: "flex-end",
           backgroundColor: "rgba(16,36,27,.45)",
+          paddingTop: Math.max(insets.top + 12, 20),
         }}
       >
         <Pressable
@@ -547,16 +548,17 @@ export function Sheet({
         <View
           style={{
             maxHeight: "92%",
+            flexShrink: 1,
             width: "100%",
             maxWidth: 620,
             alignSelf: "center",
             backgroundColor: C.canvas,
             borderTopLeftRadius: 28,
             borderTopRightRadius: 28,
-            paddingBottom: Math.max(insets.bottom, 18),
+            paddingBottom: keyboardHeight > 0 ? 8 : Math.max(insets.bottom, 18),
           }}
         >
-          <View
+          {keyboardHeight === 0 && <View
             style={{
               height: 5,
               width: 40,
@@ -565,13 +567,14 @@ export function Sheet({
               alignSelf: "center",
               marginTop: 10,
             }}
-          />
+          />}
           <View
             style={{
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "space-between",
-              padding: 22,
+              paddingHorizontal: 22,
+              paddingVertical: keyboardHeight > 0 ? 12 : 22,
             }}
           >
             <T bold size={22}>
@@ -586,6 +589,8 @@ export function Sheet({
             </Pressable>
           </View>
           <FormScroll
+            mode="layout"
+            style={{ flexGrow: 0, flexShrink: 1 }}
             // The surrounding view already resizes above the keyboard.
             extraKeyboardSpace={-keyboardHeight}
             contentContainerStyle={{ paddingHorizontal: 22, paddingBottom: 24 }}
