@@ -182,6 +182,7 @@ try:
     assert picked["status"] == "picked", "Native pickup confirmation did not complete"
     screenshot("05-order-picked")
     passed("Customer confirms pickup")
+    click("Close", desc=True)
     click("Profile", desc=True)
     wait("Your corner")
     screenshot("06-profile")
