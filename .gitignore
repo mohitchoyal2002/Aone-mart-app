@@ -17,3 +17,6 @@ android/
 ios/
 *.apk
 *.aab
+qa-output/
+build-source/
+__pycache__/
