@@ -278,11 +278,11 @@ try {
     error instanceof Error ? error.name : "unknown",
     typeof error?.code === "string" ? error.code : "",
   );
-  if (error?.code === "SERVER_ERROR" || error?.code?.startsWith("SQLITE_")) {
+  if (error?.code === "SERVER_ERROR" || error?.code?.startsWith("SQL")) {
     const detail = String(error.message || "").replace(/(?:https?|libsql):\/\/[^\s]+/g,"[provider]")
       .replace(/[A-Za-z0-9_.-]{40,}/g,"[redacted]")
       .replace(/(?:token|password|authorization)\s*[:=]\s*[^\s,;]+/gi,"[credential redacted]").slice(0,400);
-    console.error("Database diagnostic:", detail);
+    console.error("Database diagnostic:", detail, "statement", Number.isInteger(error.statementIndex) ? error.statementIndex : "unknown");
   }
   process.exitCode = 1;
 } finally {
