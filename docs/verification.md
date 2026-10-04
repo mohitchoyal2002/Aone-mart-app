@@ -17,6 +17,7 @@
 | Custom notification resource | `aone_order.wav` exists in generated `android/app/src/main/res/raw` |
 | Dependency compatibility | `expo install --check` reported up to date using the installed SDK 57 compatibility data; offline mode could not check React Native Directory |
 | Live Gemini service | Real admin API chat returned HTTP 200 with **12 active sample products and ₹0 selected-period sales**, matching the local database |
+| GitHub source transfer | Complete native FE, backend, sample CSVs, deployment configuration and APK workflow pushed to `mohitchoyal2002/Aone-mart-app`; private credentials excluded |
 | Source archive | Excludes private environment files, API keys, JWT/admin credentials, SQLite data, node_modules and generated native/build directories |
 
 The JavaScript export and prebuild are compilation preparation, not an APK installation or physical-device UI test.
@@ -56,7 +57,6 @@ The JavaScript export and prebuild are compilation preparation, not an APK insta
 | Native notification tap from killed app | Requires the above compiled-device test. Routing code is implemented but has not been exercised on a device. |
 | PDF/image invoice extraction against real mart invoices | Extraction and mandatory preview/review code are present; only deterministic CSV imports were integration-tested. Test actual scans, correct missing SKUs/dates using CSV. |
 | Docker image execution | Docker runtime unavailable; Dockerfile supplied for deployment. |
-| GitHub source transfer | Read/write access verified for the supplied repository. Complete source transfer is underway. |
 | Public backend deployment | User chose a VPS; server IP/domain and SSH access have not been supplied. Deployment files are ready. |
 | Actual mart details/catalog | Google share URL was inaccessible; configure verified information and import the real catalog. |
 | Real money/payment processing | Checkout is pay-at-mart pickup. No payment gateway integration was requested or implemented. |
