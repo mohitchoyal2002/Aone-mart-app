@@ -19,7 +19,7 @@ One React Native Android app has separate Customer and Admin workspaces. Admin u
 | AI Summary | Read-only Gemini chat about current inventory, selected sales range, customers and coupons; Hindi/English questions |
 | Notifications | Authenticated realtime updates, persistent notification inbox/outbox and bundled custom new-order tone; remote push integration |
 
-**Build status:** the backend and native app source are implemented and checked. GitHub write access is verified, and the Android APK workflow builds the app on each mobile-source push to `main`. An installable APK is available only after that workflow succeeds. Notifications are deferred: both the app and server default to `ENABLE_NOTIFICATIONS=false`. VPS deployment configuration is supplied; a live deployment needs the server IP/domain and SSH access.
+**Build status:** the native Android APK compiled successfully and the delivered `Aone-Mart-v1.0.0.apk` is signed with a retained private Aone Mart key. Signature, non-debuggable release configuration, arm64/x86_64 packaging, 16 KB ZIP/arm64 ELF alignment and secret checks passed. GitHub contains the complete FE/BE source and reproducible APK workflow. Native UI smoke checks run separately. Notifications are deferred: both the app and server default to `ENABLE_NOTIFICATIONS=false`. VPS deployment configuration is supplied; live deployment is pending the server IP/domain and SSH access.
 
 The supplied Google share link could not be resolved in this environment. The mart name is used, while its address, opening hours, logo and actual catalog have not been verified. Enter verified store details in Admin → Store Settings. Sample products are explicitly labelled when the optional seed is used.
 
@@ -108,6 +108,8 @@ npx eas-cli@latest build --platform android --profile preview
 
 Alternatively, the repository’s **Android APK** GitHub Actions workflow compiles a self-contained APK with notifications disabled, without an Expo account. Its CI output uses a build signing key and must be re-signed with the retained private release key for distributed updates. Download the APK from the resulting build page and install it on Android. The backend must remain reachable for shopping, orders and reports. The application JavaScript is bundled into the preview APK, so Metro is not required to run that APK.
 
+The delivered APK uses package `com.aonemart.app`, version code `1`, minimum Android API 24 and target API 36. It supports arm64 phones and x86_64 emulators. Keep the supplied private signing backup outside GitHub. All future updates, including EAS builds, must use that same keystore and a higher version code. The delivered APK SHA-256 is `0b1f58218ad51c7a44c5cc61cbea175fe00c10551f6cefa47d348bd8d9a8cfe4`.
+
 For Google Play:
 
 ```bash
@@ -126,7 +128,7 @@ Official references: [APK builds](https://docs.expo.dev/build-reference/apk/), [
 
 ## 4. Enable background order alerts
 
-Foreground authenticated WebSocket notifications are implemented. To receive alerts while the admin app is in the background:
+Authenticated WebSocket data updates are implemented. Native foreground alerts and background push are disabled in the delivered APK. To enable alerts later:
 
 1. Create/link your Expo project and set `EXPO_PUBLIC_EAS_PROJECT_ID` for the Android build.
 2. Register an Android app in Firebase using package `com.aonemart.app`.
