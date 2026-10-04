@@ -31,7 +31,7 @@ try {
   const tx = await client.transaction("write");
   try {
     stage = "schema DDL execution";
-    await tx.executeMultiple(schemaSQL);
+    await tx.batch(schemaSQL.split(";").map(sql => sql.trim()).filter(Boolean));
     stage = "store settings initialization";
     await tx.execute({
       sql: "INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)",
