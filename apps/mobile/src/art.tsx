@@ -59,7 +59,7 @@ export function ProductArt({
         </LinearGradient>
         <LinearGradient id="bottle" x1="0" y1="0" x2="1" y2="0">
           <Stop offset="0" stopColor="#F6D365" />
-          <Stop offset=".6" stopColor="#EBC24C" />
+          <Stop offset="0.6" stopColor="#EBC24C" />
           <Stop offset="1" stopColor="#D3A02B" />
         </LinearGradient>
         <LinearGradient id="leaf" x1="0" y1="0" x2="1" y2="1">
@@ -67,7 +67,7 @@ export function ProductArt({
           <Stop offset="1" stopColor="#255B35" />
         </LinearGradient>
       </Defs>
-      <Ellipse cx="91" cy="133" rx="47" ry="7" fill="#183C21" opacity=".11" />
+      <Ellipse cx="91" cy="133" rx="47" ry="7" fill="#183C21" opacity="0.11" />
       {artwork === "rice" && (
         <G>
           <Path d="M52 23l-4 13 5 93h76l5-93-6-13z" fill="url(#paper)" />
@@ -144,7 +144,7 @@ export function ProductArt({
           <Path
             d="M70 65v55"
             stroke="#FFF4BC"
-            opacity=".7"
+            opacity="0.7"
             strokeWidth="5"
             strokeLinecap="round"
           />
@@ -276,7 +276,7 @@ export function ProductArt({
                   : "url(#paper)"
             }
           />
-          <Path d="M126 22l10 11-5 97-9-3z" fill="#142C1D" opacity=".12" />
+          <Path d="M126 22l10 11-5 97-9-3z" fill="#142C1D" opacity="0.12" />
           <Rect
             x="55"
             y="47"

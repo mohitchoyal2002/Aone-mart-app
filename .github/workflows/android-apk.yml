@@ -6,6 +6,8 @@ on:
       - "apps/mobile/**"
       - "package.json"
       - "package-lock.json"
+      - "scripts/prepare-native-anime.cjs"
+      - "scripts/native-compatibility.test.cjs"
       - ".github/workflows/android-apk.yml"
   workflow_dispatch:
 permissions:
@@ -39,6 +41,7 @@ jobs:
       - name: Verify backend and mobile source
         run: |
           npm test
+          node --test scripts/native-compatibility.test.cjs
           npm run typecheck
           npm run lint -w @aone/mobile
           npm run build:api

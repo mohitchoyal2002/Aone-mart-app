@@ -22,3 +22,31 @@ for (const ext of ["js", "cjs"]) {
     );
   fs.writeFileSync(file, source.replace(old, fixed));
 }
+
+// Expo SDK 57 makes WebGL2RenderingContext inherit from WebGLRenderingContext.
+// Three r166's WebGL 1 guard also rejects that valid WebGL 2 context. Preserve
+// its WebGL 1 rejection, while accepting the native WebGL 2 subclass. Patch
+// both package entry points and source; do not change runtime globals.
+let threeRoot;
+try {
+  threeRoot = path.resolve(path.dirname(require.resolve("three")), "..");
+} catch {
+  process.exit(0);
+}
+const oldGuard =
+  "typeof WebGLRenderingContext !== 'undefined' && context instanceof WebGLRenderingContext";
+const fixedGuard =
+  oldGuard +
+  " && !( typeof WebGL2RenderingContext !== 'undefined' && context instanceof WebGL2RenderingContext )";
+for (const relative of [
+  "build/three.cjs",
+  "build/three.module.js",
+  "src/renderers/WebGLRenderer.js",
+]) {
+  const file = path.join(threeRoot, relative);
+  const source = fs.readFileSync(file, "utf8");
+  if (source.includes(fixedGuard)) continue;
+  if (!source.includes(oldGuard))
+    throw new Error("Review Three.js native WebGL compatibility before updating it.");
+  fs.writeFileSync(file, source.replace(oldGuard, fixedGuard));
+}

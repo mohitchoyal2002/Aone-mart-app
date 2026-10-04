@@ -181,7 +181,7 @@ function TrendPlot({
       >
         <Defs>
           <LinearGradient id="analyticsShade" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={C.forest} stopOpacity=".24" />
+            <Stop offset="0" stopColor={C.forest} stopOpacity="0.24" />
             <Stop offset="1" stopColor={C.forest} stopOpacity="0" />
           </LinearGradient>
         </Defs>
@@ -230,7 +230,7 @@ function TrendPlot({
           y1={top}
           y2={base}
           stroke={C.forest}
-          strokeOpacity=".35"
+          strokeOpacity="0.35"
           strokeDasharray="3 3"
         />
         <Circle

@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { View, ScrollView, Switch } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
+import { File } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { Upload, Download } from "lucide-react-native";
 import { api } from "./api";
@@ -76,11 +77,7 @@ export function ImportButton({
         );
       const form = new FormData();
       form.append("type", type);
-      form.append("file", {
-        uri: asset.uri,
-        name: asset.name,
-        type: asset.mimeType || "text/csv",
-      } as any);
+      form.append("file", new File(asset.uri), asset.name);
       const r = await api.request<{ preview: ImportPreview }>(
         "/api/admin/imports/preview",
         { method: "POST", body: form },

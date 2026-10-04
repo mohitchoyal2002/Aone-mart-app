@@ -25,6 +25,7 @@ export function BasketScene({ active = true }: { active?: boolean }) {
     let rotation: ReturnType<typeof animate> | undefined;
     let float: ReturnType<typeof animate> | undefined;
     const release = () => {
+      if (disposed) return;
       disposed = true;
       cancelAnimationFrame(frame);
       rotation?.cancel();
@@ -153,6 +154,7 @@ export function BasketScene({ active = true }: { active?: boolean }) {
         ease: "inOutSine",
       });
       let last = 0;
+      let reported = false;
       const render = (time: number) => {
         if (disposed) return;
         frame = requestAnimationFrame(render);
@@ -162,13 +164,25 @@ export function BasketScene({ active = true }: { active?: boolean }) {
           engine.update();
           renderer!.render(scene, camera);
           gl.endFrameEXP();
-        } catch {
+          if (!reported && renderer!.info.render.calls > 0) {
+            reported = true;
+            console.info("Aone Mart basket scene rendered (Three.js + Anime.js)");
+          }
+        } catch (error) {
+          console.warn(
+            "Aone Mart basket rendering failed",
+            error instanceof Error ? error.message : String(error),
+          );
           release();
           setFailed(true);
         }
       };
       render(0);
-    } catch {
+    } catch (error) {
+      console.warn(
+        "Aone Mart basket initialization failed",
+        error instanceof Error ? error.message : String(error),
+      );
       release();
       setFailed(true);
     }

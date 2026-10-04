@@ -78,10 +78,10 @@ def scroll():
     time.sleep(.6)
 
 
-def click(label, desc=False):
+def click(label, desc=False, exact=False):
     node = None
     for _ in range(5):
-        node = find(label, desc=desc)
+        node = find(label, desc=desc, exact=exact)
         if node is not None:
             break
         scroll()
@@ -266,7 +266,12 @@ try:
     click("Pause basket animation", desc=True)
     wait("Play basket animation", desc=True)
     click("Play basket animation", desc=True)
+    time.sleep(1)
     screenshot("03a-home-motion")
+    native_log = adb("logcat", "-d", "-s", "ReactNativeJS").decode(errors="replace")
+    assert "Aone Mart basket scene rendered (Three.js + Anime.js)" in native_log, "The native 3D scene did not render any meshes"
+    assert "Aone Mart basket initialization failed" not in native_log and "Aone Mart basket rendering failed" not in native_log, "The native 3D scene fell back after a rendering error"
+    passed("Native Three.js scene renders meshes with Anime.js object animation")
     passed("Home 3D animation pause and resume controls")
     adb("shell", "settings", "put", "global", "transition_animation_scale", "0")
     adb("shell", "settings", "put", "global", "animator_duration_scale", "0")
@@ -357,7 +362,7 @@ try:
     wait("Show roots", desc=True)
     click("Show roots", desc=True)
     click("Downloads")
-    click("aone-qa-sales.csv")
+    click("aone-qa-sales.csv", exact=True)
     wait("Review your import")
     assert find("Deduct stock for these sales?") is None, "Bill summaries must not offer invented stock deductions"
     screenshot("18-native-csv-preview")
@@ -422,6 +427,41 @@ try:
     screenshot("15-themed-success-dialog")
     click("Okay", desc=True)
     passed("Errors and confirmations use app-branded dialogs")
+    banner_asset = ROOT / "build-source/apps/mobile/assets/brand/mark.png"
+    adb("push", str(banner_asset), "/sdcard/Download/aone-qa-banner.png")
+    adb("shell", "am", "broadcast", "-a", "android.intent.action.MEDIA_SCANNER_SCAN_FILE", "-d", "file:///sdcard/Download/aone-qa-banner.png")
+    for count in [0, 1]:
+        click(f"Add banner · {count}/5", desc=True)
+        # SDK 57 uses the Android photo picker, with DocumentsUI as the
+        # fallback on Android versions that have no installed photo picker.
+        if find("Show roots", desc=True) is not None:
+            click("Show roots", desc=True)
+            click("Downloads")
+            click("aone-qa-banner.png", exact=True)
+        else:
+            deadline = time.monotonic() + 30
+            photo = None
+            while time.monotonic() < deadline:
+                tree = dump()
+                photo = next((n for n in tree.iter("node") if n.get("clickable") == "true"
+                              and ("photo taken" in n.get("content-desc", "").casefold()
+                                   or "aone-qa-banner" in (n.get("text", "") + n.get("content-desc", "")))), None)
+                if photo is not None:
+                    break
+                time.sleep(1)
+            assert photo is not None, "Native photo picker did not show the seeded banner image"
+            left, top, right, bottom = map(int, re.findall(r"\d+", photo.get("bounds")))
+            adb("shell", "input", "tap", str((left + right) // 2), str((top + bottom) // 2))
+        wait("Add a banner")
+        fill("Banner title", f"Native offer {count + 1}")
+        fill("Describe the offer or image", "Neighbourhood essentials")
+        click("Save banner", desc=True)
+        wait("Banner saved")
+        screenshot(f"20-native-banner-upload-{count + 1}")
+        click("Okay", desc=True)
+        saved_banners = api("/api/admin/settings/banners", token=token)["banners"]
+        assert len(saved_banners) == count + 1
+    passed("Native image picker compresses and uploads multiple store banners")
     admin_tab("AI Summary")
     wait("AI summary", sensitive=True)
     click("Ask anything about your mart", desc=True)

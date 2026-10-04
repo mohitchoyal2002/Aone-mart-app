@@ -3,6 +3,7 @@ import { View } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
+import { File } from "expo-file-system";
 import { Upload, ArrowUp, ArrowDown } from "lucide-react-native";
 import { api } from "./api";
 import { AppDialog } from "./dialog-service";
@@ -80,11 +81,7 @@ export function BannerSettings() {
       const form = new FormData();
       form.append("title", draft.title.trim());
       form.append("altText", draft.altText.trim());
-      form.append("file", {
-        uri: draft.uri,
-        name: "banner.jpg",
-        type: "image/jpeg",
-      } as any);
+      form.append("file", new File(draft.uri), "banner.jpg");
       await api.request(
         "/api/admin/settings/banners" + (draft.id ? `/${draft.id}` : ""),
         { method: draft.id ? "PUT" : "POST", body: form },

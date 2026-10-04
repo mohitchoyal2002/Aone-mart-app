@@ -265,4 +265,6 @@ export const alertError = (e: unknown) =>
   Alert.alert(
     "Please check",
     e instanceof Error ? e.message : "Please try again.",
+    undefined,
+    { tone: "error" },
   );
