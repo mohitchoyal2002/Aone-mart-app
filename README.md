@@ -19,7 +19,9 @@ One React Native Android app has separate Customer and Admin workspaces. Admin u
 | AI Summary | Read-only Gemini chat about current inventory, selected sales range, customers and coupons; Hindi/English questions |
 | Notifications | Authenticated realtime updates, persistent notification inbox/outbox and bundled custom new-order tone; remote push integration |
 
-**Build status:** the native Android APK compiled successfully and the delivered `Aone-Mart-v1.0.0.apk` is signed with a retained private Aone Mart key. Signature, non-debuggable release configuration, arm64/x86_64 packaging, 16 KB ZIP/arm64 ELF alignment and secret checks passed. GitHub contains the complete FE/BE source and reproducible APK workflow. Native Android customer flow and admin tablet navigation passed in the compiled APK; the primary button rendering was visually checked. Notifications are deferred: both the app and server default to `ENABLE_NOTIFICATIONS=false`. VPS deployment configuration is supplied; live deployment is pending the server IP/domain and SSH access.
+**UI update:** version **1.0.1 / Android code 2** adds keyboard-aware scrolling to connection/login screens, customer/admin pages and dialogs; Previous/Next/Done controls; extra clearance for multiline notes/addresses; visible AI chat input; inline signup validation; and safe bottom spacing. Mobile TypeScript, Expo lint and Android export have passed. [The current APK build](https://github.com/mohitchoyal2002/Aone-mart-app/actions/runs/37180966333) is compiling; Android 10 (API 29) and Android 16 (API 36) open-keyboard checks run after it completes. Download the `Aone-Mart-APK` artifact from the successful build.
+
+The previous 1.0.0 release passed native customer/admin smoke checks and private release signing verification. The current build uses the CI build signing key; use the retained private Aone Mart key for updates over the previously delivered APK. Notifications remain deferred (`ENABLE_NOTIFICATIONS=false`). Backend deployment is paused while an alternate host is selected; no public backend URL is available yet. See [verification](docs/verification.md) for completed checks and their scope.
 
 The supplied Google share link could not be resolved in this environment. The mart name is used, while its address, opening hours, logo and actual catalog have not been verified. Enter verified store details in Admin → Store Settings. Sample products are explicitly labelled when the optional seed is used.
 
@@ -82,7 +84,7 @@ From the project root:
 npm run android
 ```
 
-The app also has a native first-launch server connection screen if no URL is baked into the build. It checks `/health` before saving a server URL. Production builds require HTTPS; preview builds permit local HTTP.
+The app also has a native first-launch server connection screen if no URL is baked into the build. It checks `/health` before opening the login screen. Production builds require HTTPS; preview builds permit local HTTP.
 
 Use a compiled Android build to test custom sounds and remote push. Expo Go is not the delivery target.
 
@@ -110,7 +112,7 @@ Alternatively, the repository’s **Android APK** GitHub Actions workflow compil
 
 The **Android Native Smoke** workflow installs the compiled APK on a hardware-accelerated Android emulator and exercises customer signup, cart/order placement, realtime packed status, pickup confirmation, admin login and tablet navigation. Run `37177953445` passed. Its sample data is isolated from the actual store. The delivered APK has the same application payload as the tested CI APK, with the private release signature applied afterwards.
 
-The delivered APK uses package `com.aonemart.app`, version code `1`, minimum Android API 24 and target API 36. It supports arm64 phones and x86_64 emulators. Keep the supplied private signing backup outside GitHub. All future updates, including EAS builds, must use that same keystore and a higher version code. The delivered APK SHA-256 is `57bc53d84101d65d73c401b316b38b39d76c30eeee2e082d99248b3347a471cb`.
+The app uses package `com.aonemart.app`; the 1.0.1 update has version code `2`, minimum Android API 24 and target API 36. It supports arm64 phones and x86_64 emulators. Keep the supplied private signing backup outside GitHub. All future updates, including EAS builds, must use that same keystore and a higher version code. The delivered APK SHA-256 is `57bc53d84101d65d73c401b316b38b39d76c30eeee2e082d99248b3347a471cb`.
 
 For Google Play:
 

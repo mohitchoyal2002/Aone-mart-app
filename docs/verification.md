@@ -1,6 +1,10 @@
 # Verification record — 4 October 2026
 
-## Completed checks
+## Current UI update — 1.0.1 / code 2
+
+Keyboard-aware forms, modal and numeric-keyboard controls, multiline field clearance, chat composer positioning and navigation/safe-area fixes are implemented. Mobile TypeScript, Expo lint and Android export have passed. APK build [37180966333](https://github.com/mohitchoyal2002/Aone-mart-app/actions/runs/37180966333) is in progress. The native workflow will measure focused field/toolbar/IME bounds on Android API 29 and 36 while the software keyboard is open; these new native checks are pending.
+
+## Previous release — 1.0.0 completed checks
 
 | Check | Result and scope |
 | --- | --- |
@@ -66,7 +70,7 @@ The JavaScript export and prebuild are compilation preparation, not an APK insta
 | Native notification tap from killed app | Requires the above compiled-device test. Routing code is implemented but has not been exercised on a device. |
 | PDF/image invoice extraction against real mart invoices | Extraction and mandatory preview/review code are present; only deterministic CSV imports were integration-tested. Test actual scans, correct missing SKUs/dates using CSV. |
 | Docker image execution | Docker runtime unavailable; Dockerfile supplied for deployment. |
-| Public backend deployment | User chose a VPS; server IP/domain and SSH access have not been supplied. Deployment files are ready. |
+| Public backend deployment | Deployment is paused at the user's request while an alternate hosting option is selected. The Render Blueprint is prepared; no public URL has been deployed. |
 | Actual mart details/catalog | Google share URL was inaccessible; configure verified information and import the real catalog. |
 | Real money/payment processing | Checkout is pay-at-mart pickup. No payment gateway integration was requested or implemented. |
 
