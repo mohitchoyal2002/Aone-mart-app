@@ -28,11 +28,21 @@ def adb(*args, timeout=30):
 
 def dump():
     global last_tree
-    adb("shell", "uiautomator", "dump", "/sdcard/aone-ui.xml")
-    data = adb("exec-out", "cat", "/sdcard/aone-ui.xml")
-    (OUT / "last-ui.xml").write_bytes(data)
-    last_tree = ET.fromstring(data)
-    return last_tree
+    # During a splash/activity transition Android can briefly return an empty
+    # hierarchy or a non-XML dump. Retry the capture, preserving UI assertions.
+    for attempt in range(4):
+        adb("shell", "uiautomator", "dump", "/sdcard/aone-ui.xml")
+        data = adb("exec-out", "cat", "/sdcard/aone-ui.xml")
+        (OUT / "last-ui.xml").write_bytes(data)
+        try:
+            tree = ET.fromstring(data)
+            assert tree.tag == "hierarchy", "Unexpected native hierarchy"
+            last_tree = tree
+            return tree
+        except (ET.ParseError, AssertionError):
+            if attempt == 3:
+                raise
+            time.sleep(.5)
 
 
 def find(label, desc=False, exact=False, sensitive=False):
@@ -264,6 +274,12 @@ try:
     adb("shell", "settings", "put", "global", "animator_duration_scale", "1")
     wait("Pause basket animation", desc=True)
     passed("Home respects Android Reduce Motion")
+    adb("shell", "am", "force-stop", PACKAGE)
+    adb("shell", "am", "start", "-n", PACKAGE + "/.MainActivity")
+    screenshot("03c-cold-start")
+    wait("Pause basket animation", desc=True, seconds=60)
+    screenshot("03d-restored-home")
+    passed("Cold startup restores the customer session without a recovery error")
     click("Search rice, milk, essentials...", desc=True)
     assert_input_above_keyboard("Search rice, milk, essentials...", "keyboard-05-home-search")
     assert find("Home", desc=True) is None, "Customer navigation still consumes typing space"

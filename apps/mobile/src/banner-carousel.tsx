@@ -3,7 +3,7 @@ import { View, ScrollView, Pressable, useWindowDimensions } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { ChevronLeft, ChevronRight, Pause, Play } from "lucide-react-native";
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused } from "expo-router";
 import { api } from "./api";
 import { C, T } from "./ui";
 import { useMotion } from "./motion";

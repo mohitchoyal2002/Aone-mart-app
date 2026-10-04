@@ -29,8 +29,8 @@ Hindi/Hinglish is used sparingly in branding (“Apni dukaan. Apna bharosa.”).
 
 ## Motion and performance
 
-- Local 1.92-second logo GIF replaces app-owned progress spinners. Static logo appears with reduced motion or while backgrounded.
-- Startup keeps the native splash until fonts are ready, then transitions through the same animated identity while restoring the session. It does not impose a long splash delay on an already-ready app.
+- Local 384-pixel, 1.92-second logo GIF replaces app-owned progress spinners. Static logo appears with reduced motion or while backgrounded.
+- Startup keeps the native splash until fonts are ready, then animates the original 1254-pixel full-colour PNG with native transforms while restoring the session. It avoids enlarging the loader GIF and does not impose a long splash delay on an already-ready app. The launcher and native splash also use the original full-resolution image.
 - Native press springs, page entrance and navigator fade transitions provide lightweight feedback.
 - A procedural Three.js shopping basket, fruit and milk carton render through Expo GL. Anime.js animates plain object transforms; the frame loop caps rendering at approximately 30 fps.
 - GL surfaces unmount on pause, reduced motion, inactive app, inactive tab and when the hero scrolls out of view. Geometries, materials, animation instances and frame callbacks are cleaned up. Failed GL rendering falls back to the logo.

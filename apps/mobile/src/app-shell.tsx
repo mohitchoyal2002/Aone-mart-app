@@ -36,6 +36,13 @@ class AppErrorBoundary extends React.Component<
   static getDerivedStateFromError() {
     return { failed: true };
   }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error("Aone Mart render failed", {
+      name: error.name,
+      message: error.message,
+      componentStack: info.componentStack,
+    });
+  }
   render() {
     if (!this.state.failed) return this.props.children;
     return (
@@ -48,6 +55,7 @@ class AppErrorBoundary extends React.Component<
           justifyContent: "center",
         }}
       >
+        <StatusBar style="dark" />
         <Text style={{ fontSize: 24, fontWeight: "700", color: C.ink }}>
           Let’s open Aone Mart again.
         </Text>

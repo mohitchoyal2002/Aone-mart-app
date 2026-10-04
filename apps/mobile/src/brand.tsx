@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, Animated, StyleSheet } from "react-native";
+import { View, Text, Animated, Easing, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useMotion } from "./motion";
@@ -36,6 +36,59 @@ export function BrandLoader({ size = 52 }: { size?: number }) {
         style={{ width: size, height: size }}
       />
     </View>
+  );
+}
+
+function StartupLogo() {
+  const { enabled } = useMotion();
+  const [progress] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    progress.setValue(0);
+    if (!enabled) return;
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(progress, {
+          toValue: 1,
+          duration: 1200,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+          isInteraction: false,
+        }),
+        Animated.timing(progress, {
+          toValue: 0,
+          duration: 1200,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+          isInteraction: false,
+        }),
+      ]),
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [enabled, progress]);
+  return (
+    <Animated.View
+      accessibilityRole="progressbar"
+      accessibilityLabel="Opening Aone Mart"
+      style={{
+        transform: [
+          {
+            scale: progress.interpolate({
+              inputRange: [0, 1],
+              outputRange: [1, 1.04],
+            }),
+          },
+          {
+            translateY: progress.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0, -5],
+            }),
+          },
+        ],
+      }}
+    >
+      <BrandMark size={160} />
+    </Animated.View>
   );
 }
 
@@ -84,7 +137,7 @@ export function Startup({
             justifyContent: "center",
           }}
         >
-          <BrandLoader size={160} />
+          <StartupLogo />
         </View>
         <Text
           style={{
