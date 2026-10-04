@@ -59,7 +59,10 @@ export async function initializeDatabase(): Promise<void> {
   if (!remote) return;
   if (!ready) {
     ready = remote
-      .execute({sql: "SELECT value FROM settings WHERE key=?", args:["schemaVersion"]})
+      .execute({
+        sql: "SELECT value FROM settings WHERE key=?",
+        args: ["schemaVersion"],
+      })
       .then((result) => {
         if (Number(result.rows[0]?.[0]) !== schemaVersion)
           throw new Error(
@@ -132,14 +135,12 @@ export async function batchRun(statements: Statement[]) {
     throw new Error("Batch writes require a database transaction.");
   if (local)
     return statements.map(({ sql, args }) => local!.prepare(sql).run(...args));
-  const results = await scope
-    .getStore()!
-    .transaction!.batch(
-      statements.map(({ sql, args }) => ({
-        sql,
-        args: argumentsForRemote(args),
-      })),
-    );
+  const results = await scope.getStore()!.transaction!.batch(
+    statements.map(({ sql, args }) => ({
+      sql,
+      args: argumentsForRemote(args),
+    })),
+  );
   return results.map((result) => ({
     changes: result.rowsAffected,
     lastInsertRowid: result.lastInsertRowid ?? 0n,

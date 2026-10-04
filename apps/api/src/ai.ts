@@ -6,6 +6,7 @@ import { requireAuth, adminOnly } from "./auth.js";
 import { AppError } from "./core.js";
 import { dashboard } from "./reports.js";
 import { rateLimit } from "express-rate-limit";
+import { DatabaseRateStore } from "./rate-store.js";
 export async function gemini(
   system: string,
   parts: Record<string, unknown>[],
@@ -111,6 +112,7 @@ aiRouter.use(requireAuth, adminOnly);
 aiRouter.post(
   "/chat",
   rateLimit({
+    store: new DatabaseRateStore("ai:"),
     windowMs: 60000,
     limit: 10,
     standardHeaders: "draft-8",

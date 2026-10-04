@@ -9,8 +9,13 @@ Admin and customer endpoints retain their own password and role checks.
 
 Project `aone-mart-app` is linked to this repository; root directory `apps/api`,
 Express framework, Node 24, Mumbai function region. The owner approved the free
-Turso integration and created `aone-mart-db` in Mumbai. Production verification
-is in progress; do not treat an unverified preview URL as the app service.
+Turso integration and created `aone-mart-db` in Mumbai. Production is live at **https://aone-mart-app.vercel.app**. Enter this exact origin
+in the Android app, without `/api`. Anonymous HTTPS health returned 200 and the
+Turso database was verified through live admin login, inventory/dashboard reads,
+Gemini chat (200) and logout revocation (401). 29 backend integration tests pass.
+Actual inventory: 45 products, 1,315 units, 10 categories, 45 source records.
+One-time administrator and CSV setup values have been cleared from project
+configuration; subsequent builds retain the existing administrator and stock.
 
 - Build command: `npm run prepare:vercel`.
 - Permanent storage credentials: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`.
@@ -30,8 +35,13 @@ is in progress; do not treat an unverified preview URL as the app service.
   HTTP listener or starting background workers. The Android app polls orders;
   notifications remain deferred. Standalone Docker uses `src/index.ts` and can
   retain its authenticated WebSocket endpoint.
-- App connection uses an HTTPS origin with no `/api` suffix. The requested custom
-  domain is `api.aoneonlinemart.shop`; DNS setup follows successful BE deployment.
+- Vercel uploads accept up to 4 MB, leaving space for multipart headers within
+  the function body limit. Local/Docker uploads retain their 5 MB limit.
+- `api.aoneonlinemart.shop` is assigned to this Vercel project. It is **pending DNS**,
+  and is not yet the app service address. At GoDaddy create CNAME `api` pointing to
+  `01be81785bffb4f9.vercel-dns-017.com.`. Vercel reports invalid configuration until
+  DNS resolves correctly. Old `app`/`admin` DNS removal awaits GoDaddy access.
+  The root domain and `www` are outside the requested DNS changes.
 
 ## Render
 

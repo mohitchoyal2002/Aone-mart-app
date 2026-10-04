@@ -46,7 +46,7 @@ app.use(
     },
   }),
 );
-app.get("/health", async (_req, res) => {
+app.get(["/", "/health"], async (_req, res) => {
   await row("SELECT 1");
   res.json({
     ok: true,
@@ -54,6 +54,7 @@ app.get("/health", async (_req, res) => {
     version: "1.1.0",
     database: config.tursoUrl ? "turso" : "sqlite",
     realtime: config.serverless ? "polling" : "websocket",
+    maxUploadBytes: (config.serverless ? 4 : 5) * 1024 * 1024,
   });
 });
 app.use("/api/auth", authRouter);
@@ -100,7 +101,7 @@ app.use(
     }
     if (error instanceof multer.MulterError) {
       res.status(413).json({
-        error: "Upload one file, no larger than 5 MB.",
+        error: `Upload one file, no larger than ${config.serverless ? 4 : 5} MB.`,
         code: "UPLOAD_LIMIT",
       });
       return;

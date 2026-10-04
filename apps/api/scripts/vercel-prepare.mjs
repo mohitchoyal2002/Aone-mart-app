@@ -31,13 +31,21 @@ try {
   const tx = await client.transaction("write");
   try {
     stage = "schema DDL execution";
-    await tx.batch(schemaSQL.split(";").map(sql => sql.trim()).filter(sql => sql && !sql.startsWith("PRAGMA")));
+    await tx.batch(
+      schemaSQL
+        .split(";")
+        .map((sql) => sql.trim())
+        .filter((sql) => sql && !sql.startsWith("PRAGMA")),
+    );
     stage = "store settings initialization";
     await tx.execute({
       sql: "INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)",
       args: ["store", JSON.stringify(defaultStore)],
     });
-    await tx.execute({sql:"INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)",args:["schemaVersion",String(schemaVersion)]});
+    await tx.execute({
+      sql: "INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)",
+      args: ["schemaVersion", String(schemaVersion)],
+    });
     stage = "schema transaction commit";
     await tx.commit();
   } catch (error) {
@@ -137,7 +145,13 @@ try {
       signal: AbortSignal.timeout(120000),
     });
     const body = await response.json();
-    if (!response.ok) console.error("HTTP verification failed",path,response.status,body.code || "unknown");
+    if (!response.ok)
+      console.error(
+        "HTTP verification failed",
+        path,
+        response.status,
+        body.code || "unknown",
+      );
     if (!response.ok)
       throw new Error(`API verification returned HTTP ${response.status}`);
     return body;
@@ -237,7 +251,9 @@ try {
           );
       }
       stage = "catalog and report verification";
-      const catalog = await call("/api/catalog/products?limit=100", {headers});
+      const catalog = await call("/api/catalog/products?limit=100", {
+        headers,
+      });
       if (!Array.isArray(catalog.products))
         throw new Error("Catalog verification failed");
       await call("/api/admin/reports/dashboard", { headers });
@@ -258,8 +274,7 @@ try {
         "Initial import requires one-time administrator credentials",
       );
     const catalog = await call("/api/catalog/store");
-    if (!catalog.store?.name)
-      throw new Error("Catalog verification failed");
+    if (!catalog.store?.name) throw new Error("Catalog verification failed");
     console.log("Health, permanent database and public catalog verified");
   }
   // Maintenance is safe to repeat during each deployment; no background timers needed.
@@ -281,10 +296,20 @@ try {
     typeof error?.code === "string" ? error.code : "",
   );
   if (error?.code === "SERVER_ERROR" || error?.code?.startsWith("SQL")) {
-    const detail = String(error.message || "").replace(/(?:https?|libsql):\/\/[^\s]+/g,"[provider]")
-      .replace(/[A-Za-z0-9_.-]{40,}/g,"[redacted]")
-      .replace(/(?:token|password|authorization)\s*[:=]\s*[^\s,;]+/gi,"[credential redacted]").slice(0,400);
-    console.error("Database diagnostic:", detail, "statement", Number.isInteger(error.statementIndex) ? error.statementIndex : "unknown");
+    const detail = String(error.message || "")
+      .replace(/(?:https?|libsql):\/\/[^\s]+/g, "[provider]")
+      .replace(/[A-Za-z0-9_.-]{40,}/g, "[redacted]")
+      .replace(
+        /(?:token|password|authorization)\s*[:=]\s*[^\s,;]+/gi,
+        "[credential redacted]",
+      )
+      .slice(0, 400);
+    console.error(
+      "Database diagnostic:",
+      detail,
+      "statement",
+      Number.isInteger(error.statementIndex) ? error.statementIndex : "unknown",
+    );
   }
   process.exitCode = 1;
 } finally {

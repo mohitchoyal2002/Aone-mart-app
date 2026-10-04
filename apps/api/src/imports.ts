@@ -15,9 +15,14 @@ import {
 import { requireAuth, adminOnly } from "./auth.js";
 import { id, fail, money, audit, phone, AppError } from "./core.js";
 import { extractInvoice } from "./ai.js";
+import { config } from "./config.js";
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024, files: 1, fields: 4 },
+  limits: {
+    fileSize: (config.serverless ? 4 : 5) * 1024 * 1024,
+    files: 1,
+    fields: 4,
+  },
 });
 const number = z.coerce.number().finite();
 const text = (min: number, max: number) => z.string().trim().min(min).max(max);
