@@ -227,9 +227,10 @@ try:
     adb("shell", "wm", "size", "720x1280")
     adb("shell", "wm", "density", "280")
     adb("shell", "settings", "put", "secure", "show_ime_with_hard_keyboard", "1")
-    # Emulator-runner disables animator duration globally, which Android exposes
-    # as Reduce Motion. Exercise the real 3D/GIF path with motion enabled.
-    adb("shell", "settings", "put", "global", "animator_duration_scale", "1")
+    # React Native reads transition_animation_scale for Reduce Motion.
+    # Emulator-runner disables all three scales; restore real native motion.
+    for setting in ["window_animation_scale", "transition_animation_scale", "animator_duration_scale"]:
+        adb("shell", "settings", "put", "global", setting, "1")
     adb("shell", "input", "keyevent", "KEYCODE_WAKEUP")
     adb("shell", "wm", "dismiss-keyguard")
     adb("shell", "am", "start", "-n", PACKAGE + "/.MainActivity")
@@ -267,10 +268,12 @@ try:
     click("Play basket animation", desc=True)
     screenshot("03a-home-motion")
     passed("Home 3D animation pause and resume controls")
+    adb("shell", "settings", "put", "global", "transition_animation_scale", "0")
     adb("shell", "settings", "put", "global", "animator_duration_scale", "0")
     time.sleep(1)
     assert find("Pause basket animation", desc=True) is None, "Reduce Motion did not disable automatic animation"
     screenshot("03b-home-reduced-motion")
+    adb("shell", "settings", "put", "global", "transition_animation_scale", "1")
     adb("shell", "settings", "put", "global", "animator_duration_scale", "1")
     wait("Pause basket animation", desc=True)
     passed("Home respects Android Reduce Motion")
