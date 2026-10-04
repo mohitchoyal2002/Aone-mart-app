@@ -33,8 +33,9 @@ jobs:
           cp "$ANDROID_HOME/build-tools/36.0.0/zipalign" tools/
           cp "$ANDROID_HOME/build-tools/36.0.0/aapt" tools/
           cp "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" tools/lib/
+          cp -a "$ANDROID_HOME/build-tools/36.0.0/lib64" tools/
           chmod +x tools/apksigner tools/zipalign tools/aapt
-          sha256sum tools/apksigner tools/zipalign tools/aapt tools/lib/apksigner.jar > tools/SHA256.txt
+          sha256sum tools/apksigner tools/zipalign tools/aapt tools/lib/apksigner.jar tools/lib64/* > tools/SHA256.txt
       - uses: actions/upload-artifact@v4
         with:
           name: Android-build-tools-36
