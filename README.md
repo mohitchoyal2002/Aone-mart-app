@@ -21,9 +21,9 @@ One React Native Android app has separate Customer and Admin workspaces. Admin u
 
 **UI update:** version **1.0.1 / Android code 2** adds keyboard-aware scrolling, Previous/Next/Done controls, multiline field clearance, visible chat input, inline signup validation and safe bottom spacing. [APK build 37183515362](https://github.com/mohitchoyal2002/Aone-mart-app/actions/runs/37183515362) succeeded. [Native QA 37184197151](https://github.com/mohitchoyal2002/Aone-mart-app/actions/runs/37184197151) passed **28 checks on each of Android 10/API 29 and Android 16/API 36**, including 14 open-keyboard field checks per platform, customer pickup and admin tablet navigation. Download `Aone-Mart-APK` from the successful build.
 
-The CI artifact uses the build signing key. Updates over the previously delivered APK need the retained private Aone Mart key; the privately signed APK is delivered separately. Notifications remain deferred (`ENABLE_NOTIFICATIONS=false`). Vercel deployment is requested. The connected Vercel workspace currently returns HTTP 403 and must be reconnected with workspace access before provisioning. Vercel also requires an external durable database and a serverless adaptation of this SQLite backend; these are not deployed yet. No public backend URL has been deployed. The existing backend runs on a VPS with a persistent disk. See [deployment](docs/deploy-backend.md) and [verification](docs/verification.md).
+The CI artifact uses the build signing key. Updates over the previously delivered APK need the retained private Aone Mart key; the privately signed APK is delivered separately. Notifications remain deferred (`ENABLE_NOTIFICATIONS=false`). Vercel workspace access is working and the `aone-mart-app` project is linked to this repository with root directory `apps/api`. Permanent database provisioning is waiting for the owner's acceptance of the Turso integration terms. Vercel still requires the external database and a serverless adaptation of this SQLite backend; these are not deployed yet. No verified live backend URL is available. The existing backend runs on a VPS with a persistent disk. See [deployment](docs/deploy-backend.md) and [verification](docs/verification.md).
 
-The supplied Google share link could not be resolved in this environment. The mart name is used, while its address, opening hours, logo and actual catalog have not been verified. Enter verified store details in Admin → Store Settings. Sample products are explicitly labelled when the optional seed is used.
+The supplied Google share link could not be resolved in this environment. The actual uploaded catalog was imported and checked, while the mart address, opening hours and logo have not been verified. Enter verified store details in Admin → Store Settings. Sample products are explicitly labelled when the optional seed is used.
 
 ## 1. Start the backend
 
@@ -112,7 +112,7 @@ Alternatively, the repository’s **Android APK** GitHub Actions workflow compil
 
 The **Android Native Smoke** workflow installs the compiled APK on a hardware-accelerated Android emulator and exercises customer signup, cart/order placement, realtime packed status, pickup confirmation, admin login and tablet navigation. Run `37177953445` passed. Its sample data is isolated from the actual store. The delivered APK has the same application payload as the tested CI APK, with the private release signature applied afterwards.
 
-The app uses package `com.aonemart.app`; the 1.0.1 update has version code `2`, minimum Android API 24 and target API 36. It supports arm64 phones and x86_64 emulators. Keep the supplied private signing backup outside GitHub. All future updates, including EAS builds, must use that same keystore and a higher version code. The delivered APK SHA-256 is `57bc53d84101d65d73c401b316b38b39d76c30eeee2e082d99248b3347a471cb`.
+The app uses package `com.aonemart.app`; the 1.0.1 update has version code `2`, minimum Android API 24 and target API 36. It supports arm64 phones and x86_64 emulators. Keep the supplied private signing backup outside GitHub. All future updates, including EAS builds, must use that same keystore and a higher version code. The privately signed 1.0.1 APK SHA-256 is `e58bda4dc7dd41c3fee18d0a327ad456dc7efd0ed90f020ecace1cdfbaaa713a`.
 
 For Google Play:
 
@@ -263,6 +263,6 @@ npm run build:api
 npm run bundle:android -w @aone/mobile
 ```
 
-`docs/verification.md` records what was tested and what still needs a device/build service. Generated bundles and native build folders are excluded from version control. A production server is pending VPS access. The source repository is [mohitchoyal2002/Aone-mart-app](https://github.com/mohitchoyal2002/Aone-mart-app). The Android APK workflow runs without an EAS account; remote notifications remain deferred.
+`docs/verification.md` records what was tested and what still needs a device/build service. Generated bundles and native build folders are excluded from version control. Vercel database provisioning and backend adaptation are pending. The source repository is [mohitchoyal2002/Aone-mart-app](https://github.com/mohitchoyal2002/Aone-mart-app). The Android APK workflow runs without an EAS account; remote notifications remain deferred.
 
 Source folders: `apps/mobile/src/app` contains Expo Router routes; native screens/components are in `apps/mobile/src`; API/auth/database/import/report/notification services are in `apps/api/src`; integration tests are in `apps/api/test`; CSV examples are in `samples`.

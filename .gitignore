@@ -20,3 +20,4 @@ ios/
 qa-output/
 build-source/
 __pycache__/
+.vercel/
