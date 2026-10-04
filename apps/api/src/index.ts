@@ -16,11 +16,13 @@ const worker = setInterval(() => {
 }, 5000);
 worker.unref();
 const cleanup = setInterval(() => {
-  run("DELETE FROM refresh_sessions WHERE expires_at<?", now());
-  run(
-    "DELETE FROM import_batches WHERE status='preview' AND created_at<?",
-    new Date(Date.now() - 7 * 86400000).toISOString(),
-  );
+  void (async () => {
+    await run("DELETE FROM refresh_sessions WHERE expires_at<?", now());
+    await run(
+      "DELETE FROM import_batches WHERE status='preview' AND created_at<?",
+      new Date(Date.now() - 7 * 86400000).toISOString(),
+    );
+  })().catch(() => console.error("Database cleanup unavailable"));
 }, 3600000);
 cleanup.unref();
 function stop() {

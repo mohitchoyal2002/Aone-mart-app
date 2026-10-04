@@ -14,7 +14,7 @@ type Client = {
 };
 const clients = new Map<WebSocket, Client>();
 const published = new Set<string>();
-export function queueNotification(
+export async function queueNotification(
   userId: string,
   title: string,
   body: string,
@@ -22,7 +22,7 @@ export function queueNotification(
   sound = "default",
 ) {
   const nid = id();
-  run(
+  await run(
     "INSERT INTO notification_outbox(id,user_id,title,body,data_json,sound,available_at,created_at) VALUES(?,?,?,?,?,?,?,?)",
     nid,
     userId,
@@ -35,19 +35,19 @@ export function queueNotification(
   );
   return nid;
 }
-export function notifyAdmins(
+export async function notifyAdmins(
   title: string,
   body: string,
   data: Record<string, unknown>,
 ) {
-  for (const u of rows(
+  for (const u of await rows(
     "SELECT id FROM users WHERE role=? AND deleted_at IS NULL",
     "admin",
   ))
-    queueNotification(u.id, title, body, data, "aone_order.wav");
+    await queueNotification(u.id, title, body, data, "aone_order.wav");
 }
-export function publishPending() {
-  for (const n of rows(
+export async function publishPending() {
+  for (const n of await rows(
     "SELECT * FROM notification_outbox WHERE sent_at IS NULL AND attempts=0 AND available_at<=?",
     now(),
   )) {
@@ -59,7 +59,7 @@ export function publishPending() {
       if (
         client.userId === n.user_id &&
         socket.readyState === WebSocket.OPEN &&
-        validClient(socket, client)
+        (await validClient(socket, client))
       )
         socket.send(
           JSON.stringify({
@@ -84,11 +84,13 @@ export function attachRealtime(server: Server) {
       () => socket.close(4401, "Authentication required"),
       5000,
     );
-    socket.on("message", (data) => {
+    socket.on("message", async (data) => {
       try {
         const message = JSON.parse(data.toString());
         if (message.type !== "auth" || clients.has(socket)) return;
-        const user = verifyAccess(z.string().max(2048).parse(message.token));
+        const user = await verifyAccess(
+          z.string().max(2048).parse(message.token),
+        );
         const claims = JSON.parse(
           Buffer.from(message.token.split(".")[1], "base64url").toString(),
         );
@@ -116,14 +118,14 @@ export function attachRealtime(server: Server) {
       clients.delete(socket);
     });
   });
-  const heart = setInterval(() => {
+  const heart = setInterval(async () => {
     for (const [socket, c] of clients) {
       if (!c.alive) {
         socket.terminate();
         clients.delete(socket);
         continue;
       }
-      if (c.expiresAt <= Date.now() || !validClient(socket, c)) {
+      if (c.expiresAt <= Date.now() || !(await validClient(socket, c))) {
         socket.close(4401, "Session expired");
         continue;
       }
@@ -138,9 +140,9 @@ export function attachRealtime(server: Server) {
     wss.close();
   });
 }
-function validClient(socket: WebSocket, c: Client) {
+async function validClient(socket: WebSocket, c: Client) {
   try {
-    verifyAccess(c.token);
+    await verifyAccess(c.token);
     return true;
   } catch {
     socket.close(4401, "Session expired");
@@ -152,16 +154,20 @@ export async function processPushQueue() {
   if (processing) return;
   processing = true;
   try {
-    for (const n of rows(
+    for (const n of await rows(
       "SELECT * FROM notification_outbox WHERE sent_at IS NULL AND attempts<6 AND available_at<=? ORDER BY created_at LIMIT 50",
       now(),
     )) {
-      const tokens = rows(
+      const tokens = await rows(
         "SELECT token FROM device_tokens WHERE user_id=? AND active=1",
         n.user_id,
       );
       if (!tokens.length) {
-        run("UPDATE notification_outbox SET sent_at=? WHERE id=?", now(), n.id);
+        await run(
+          "UPDATE notification_outbox SET sent_at=? WHERE id=?",
+          now(),
+          n.id,
+        );
         continue;
       }
       try {
@@ -194,35 +200,39 @@ export async function processPushQueue() {
           data?: Array<{
             status: string;
             id?: string;
-            details?: { error?: string };
+            details?: {
+              error?: string;
+            };
           }>;
         };
         if (!Array.isArray(result.data) || result.data.length !== tokens.length)
           throw new Error("Push provider unavailable");
         let retry = false;
-        result.data.forEach((ticket, i) => {
-          if (ticket.details?.error === "DeviceNotRegistered")
-            run(
-              "UPDATE device_tokens SET active=0 WHERE token=?",
-              tokens[i].token,
-            );
-          else if (ticket.status !== "ok") retry = true;
-          if (ticket.id)
-            run(
-              "INSERT OR IGNORE INTO push_receipts VALUES(?,?,?,NULL)",
-              ticket.id,
-              tokens[i].token,
-              new Date(Date.now() + 15 * 60000).toISOString(),
-            );
-        });
+        await Promise.all(
+          result.data.map(async (ticket, i) => {
+            if (ticket.details?.error === "DeviceNotRegistered")
+              await run(
+                "UPDATE device_tokens SET active=0 WHERE token=?",
+                tokens[i].token,
+              );
+            else if (ticket.status !== "ok") retry = true;
+            if (ticket.id)
+              await run(
+                "INSERT OR IGNORE INTO push_receipts VALUES(?,?,?,NULL)",
+                ticket.id,
+                tokens[i].token,
+                new Date(Date.now() + 15 * 60000).toISOString(),
+              );
+          }),
+        );
         if (retry) throw new Error("Some push tickets failed");
-        run(
+        await run(
           "UPDATE notification_outbox SET sent_at=?,attempts=attempts+1,last_error=NULL WHERE id=?",
           now(),
           n.id,
         );
       } catch {
-        run(
+        await run(
           "UPDATE notification_outbox SET attempts=attempts+1,available_at=?,last_error=? WHERE id=?",
           new Date(
             Date.now() + Math.min(600000, 5000 * 2 ** n.attempts),
@@ -232,7 +242,7 @@ export async function processPushQueue() {
         );
       }
     }
-    const receipts = rows(
+    const receipts = await rows(
       "SELECT * FROM push_receipts WHERE checked_at IS NULL AND check_at<=? LIMIT 1000",
       now(),
     );
@@ -251,16 +261,23 @@ export async function processPushQueue() {
         });
         if (r.ok) {
           const { data } = (await r.json()) as {
-            data: Record<string, { details?: { error?: string } }>;
+            data: Record<
+              string,
+              {
+                details?: {
+                  error?: string;
+                };
+              }
+            >;
           };
           for (const ticket of receipts) {
             if (data?.[ticket.id]?.details?.error === "DeviceNotRegistered")
-              run(
+              await run(
                 "UPDATE device_tokens SET active=0 WHERE token=?",
                 ticket.token,
               );
             if (data?.[ticket.id])
-              run(
+              await run(
                 "UPDATE push_receipts SET checked_at=? WHERE id=?",
                 now(),
                 ticket.id,
@@ -277,7 +294,7 @@ export async function processPushQueue() {
 }
 export const devicesRouter = Router();
 devicesRouter.use(requireAuth);
-devicesRouter.post("/", (req, res) => {
+devicesRouter.post("/", async (req, res) => {
   const { token } = z
     .object({
       token: z
@@ -286,7 +303,7 @@ devicesRouter.post("/", (req, res) => {
         .max(250),
     })
     .parse(req.body);
-  run(
+  await run(
     "INSERT INTO device_tokens VALUES(?,?,1,?) ON CONFLICT(token) DO UPDATE SET user_id=excluded.user_id,active=1,updated_at=excluded.updated_at",
     token,
     req.user.id,
@@ -294,20 +311,22 @@ devicesRouter.post("/", (req, res) => {
   );
   res.json({ ok: true });
 });
-devicesRouter.delete("/", (req, res) => {
+devicesRouter.delete("/", async (req, res) => {
   const { token } = z.object({ token: z.string().max(250) }).parse(req.body);
-  run(
+  await run(
     "DELETE FROM device_tokens WHERE token=? AND user_id=?",
     token,
     req.user.id,
   );
   res.json({ ok: true });
 });
-devicesRouter.get("/notifications", (req, res) =>
+devicesRouter.get("/notifications", async (req, res) =>
   res.json({
-    notifications: rows(
-      "SELECT id,title,body,data_json data,sound,created_at createdAt FROM notification_outbox WHERE user_id=? ORDER BY created_at DESC LIMIT 40",
-      req.user.id,
+    notifications: (
+      await rows(
+        "SELECT id,title,body,data_json data,sound,created_at createdAt FROM notification_outbox WHERE user_id=? ORDER BY created_at DESC LIMIT 40",
+        req.user.id,
+      )
     ).map((n) => ({ ...n, data: JSON.parse(n.data) })),
   }),
 );

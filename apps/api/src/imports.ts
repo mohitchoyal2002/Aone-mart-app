@@ -3,7 +3,15 @@ import multer from "multer";
 import { parse } from "csv-parse/sync";
 import { z } from "zod";
 import { createHash } from "node:crypto";
-import { row, rows, run, transaction, now } from "./db.js";
+import {
+  row,
+  rows,
+  run,
+  transaction,
+  now,
+  batchRun,
+  type Statement,
+} from "./db.js";
 import { requireAuth, adminOnly } from "./auth.js";
 import { id, fail, money, audit, phone, AppError } from "./core.js";
 import { extractInvoice } from "./ai.js";
@@ -42,7 +50,9 @@ const productRow = z
       ])
       .default("bag"),
     source_format: z.literal("pos_inventory").optional(),
-    source_record: z.record(z.string().max(120), z.string().max(10000)).optional(),
+    source_record: z
+      .record(z.string().max(120), z.string().max(10000))
+      .optional(),
   })
   .refine((d) => d.mrp >= d.price, "MRP must be at least the selling price");
 const invoiceRow = z
@@ -67,9 +77,15 @@ const invoiceRow = z
     (d) => money(d.discount) <= money(d.unit_price) * d.quantity,
     "Line discount cannot exceed line amount",
   );
-export type ImportError = { row: number; message: string };
+export type ImportError = {
+  row: number;
+  message: string;
+};
 function headerKey(value: string) {
-  return value.trim().toLowerCase().replace(/[\s.\-]+/g, "_");
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s.\-]+/g, "_");
 }
 function normalize(record: Record<string, unknown>) {
   const out: Record<string, unknown> = {};
@@ -81,17 +97,31 @@ function normalize(record: Record<string, unknown>) {
 }
 function inventoryValue(record: Record<string, unknown>) {
   const value = normalize(record);
-  if (!("salerate" in value && "curr_qty" in value &&
-    ("nametodisplay" in value || "product" in value))) return value;
+  if (
+    !(
+      "salerate" in value &&
+      "curr_qty" in value &&
+      ("nametodisplay" in value || "product" in value)
+    )
+  )
+    return value;
   const name = String(value.nametodisplay || value.product || "").trim();
   const barcode = String(value.barcode || "").trim();
   // Zero is a missing POS barcode, never a shared SKU. Identity is independent
   // of row order, stock and price so later stock snapshots update the same item.
-  const identity = [name, value.unit1 || "Pack", value.unit2 || "", value.prodconv1 || ""]
-    .map(v => String(v).trim().replace(/\s+/g, " ").toUpperCase()).join("|");
+  const identity = [
+    name,
+    value.unit1 || "Pack",
+    value.unit2 || "",
+    value.prodconv1 || "",
+  ]
+    .map((v) => String(v).trim().replace(/\s+/g, " ").toUpperCase())
+    .join("|");
   return {
-    sku: barcode && !/^0+$/.test(barcode) ? barcode :
-      `POS-${createHash("sha256").update(identity).digest("hex").slice(0, 20).toUpperCase()}`,
+    sku:
+      barcode && !/^0+$/.test(barcode)
+        ? barcode
+        : `POS-${createHash("sha256").update(identity).digest("hex").slice(0, 20).toUpperCase()}`,
     name,
     category: value.category,
     price: value.salerate,
@@ -99,12 +129,50 @@ function inventoryValue(record: Record<string, unknown>) {
     stock: value.curr_qty,
     unit: value.unit1 || "Pack",
     source_format: "pos_inventory",
-    source_record: Object.fromEntries(Object.entries(record).map(([k, v]) => [k, String(v ?? "")])),
+    source_record: Object.fromEntries(
+      Object.entries(record).map(([k, v]) => [k, String(v ?? "")]),
+    ),
   };
 }
-export function validateRows(type: string, records: Record<string, unknown>[]) {
+async function productsForImport(skus: string[]) {
+  const result = new Map<string, Record<string, any>>();
+  const unique = [...new Set(skus)];
+  for (let start = 0; start < unique.length; start += 400) {
+    const chunk = unique.slice(start, start + 400);
+    for (const product of await rows(
+      `SELECT p.*,c.name category FROM products p JOIN categories c ON c.id=p.category_id WHERE p.sku IN (${chunk.map(() => "?").join(",")})`,
+      ...chunk,
+    ))
+      result.set(product.sku, product);
+  }
+  return result;
+}
+export async function validateRows(
+  type: string,
+  records: Record<string, unknown>[],
+) {
   const normalized: Record<string, any>[] = [],
     errors: ImportError[] = [];
+  const prepared = records.map((record) =>
+    type === "products" ? inventoryValue(record) : normalize(record),
+  );
+  const products = await productsForImport(
+    prepared.map((value) => String(value.sku || "")),
+  );
+  const invoiceNumbers = new Set<string>();
+  if (type === "invoices") {
+    const numbers = [
+      ...new Set(prepared.map((value) => String(value.invoice_number || ""))),
+    ];
+    for (let start = 0; start < numbers.length; start += 400) {
+      const chunk = numbers.slice(start, start + 400);
+      for (const invoice of await rows(
+        `SELECT number FROM invoices WHERE number IN (${chunk.map(() => "?").join(",")})`,
+        ...chunk,
+      ))
+        invoiceNumbers.add(invoice.number);
+    }
+  }
   const seen = new Set<string>();
   const required =
     type === "products"
@@ -112,7 +180,7 @@ export function validateRows(type: string, records: Record<string, unknown>[]) {
       : ["invoice_number", "invoice_date", "sku", "quantity", "unit_price"];
   const schema = type === "products" ? productRow : invoiceRow;
   for (const [index, record] of records.entries()) {
-    const value = type === "products" ? inventoryValue(record) : normalize(record);
+    const value = prepared[index];
     for (const k of required)
       if (value[k] === undefined || value[k] === "")
         errors.push({ row: index + 2, message: `${k} is required` });
@@ -142,10 +210,7 @@ export function validateRows(type: string, records: Record<string, unknown>[]) {
           message: `Duplicate SKU ${data.sku} in this file`,
         });
       seen.add(data.sku);
-      const product = row(
-        "SELECT stock,reserved,deleted_at FROM products WHERE sku=?",
-        data.sku,
-      );
+      const product = products.get(data.sku);
       if (product?.deleted_at)
         errors.push({
           row: index + 2,
@@ -157,12 +222,12 @@ export function validateRows(type: string, records: Record<string, unknown>[]) {
           message: `${data.sku} has ${product.reserved} reserved units; stock cannot be lower`,
         });
     } else {
-      if (!row("SELECT id FROM products WHERE sku=?", data.sku))
+      if (!products.has(data.sku))
         errors.push({
           row: index + 2,
           message: `Unknown SKU ${data.sku}; import inventory first`,
         });
-      if (row("SELECT id FROM invoices WHERE number=?", data.invoice_number))
+      if (invoiceNumbers.has(data.invoice_number))
         errors.push({
           row: index + 2,
           message: `Invoice ${data.invoice_number} already exists`,
@@ -244,16 +309,16 @@ importsRouter.post("/preview", upload.single("file"), async (req, res) => {
     .update(file!.buffer)
     .digest("hex");
   if (
-    row(
+    await row(
       "SELECT id FROM import_batches WHERE checksum=? AND status=?",
       checksum,
       "committed",
     )
   )
     fail(409, "This exact file was already imported.");
-  const { normalized, errors } = validateRows(type, records!),
+  const { normalized, errors } = await validateRows(type, records!),
     bid = id();
-  run(
+  await run(
     "INSERT INTO import_batches(id,type,filename,checksum,payload_json,errors_json,actor_id,created_at) VALUES(?,?,?,?,?,?,?,?)",
     bid,
     type,
@@ -265,40 +330,42 @@ importsRouter.post("/preview", upload.single("file"), async (req, res) => {
     now(),
   );
   const invoiceCount = new Set(normalized.map((x) => x.invoice_number)).size;
-  const pos = type === "products" && normalized.some(p => p.source_format === "pos_inventory");
-  const generatedSkus = pos ? normalized.filter(p => /^POS-/.test(p.sku)).length : 0;
-  res
-    .status(201)
-    .json({
-      preview: {
-        id: bid,
-        type,
-        filename: file!.originalname,
-        rowCount: records!.length,
-        validRows: normalized.length,
-        invoiceCount: type === "invoices" ? invoiceCount : undefined,
-        errors: errors.slice(0, 200),
-        errorCount: errors.length,
-        rows: normalized.slice(0, 20),
-        canCommit: errors.length === 0,
-        requiresReview: ext !== "csv",
-        note:
-          type === "invoices"
-            ? "Historical invoices do not change inventory unless you enable stock adjustment. Review extracted amounts before confirming."
-            : pos
-              ? `POS inventory detected: SaleRate is the selling price in rupees; Curr.Qty is on-hand stock in Unit1. ${generatedSkus} missing/zero barcodes receive stable product IDs. Original columns are saved. Existing costs, images and stock-alert settings are retained; new items have no purchase cost or image in this file. Set purchase costs before relying on profit reports. Active order reservations are preserved.`
-              : "Stock is the total on-hand quantity; active order reservations are preserved.",
-      },
-    });
+  const pos =
+    type === "products" &&
+    normalized.some((p) => p.source_format === "pos_inventory");
+  const generatedSkus = pos
+    ? normalized.filter((p) => /^POS-/.test(p.sku)).length
+    : 0;
+  res.status(201).json({
+    preview: {
+      id: bid,
+      type,
+      filename: file!.originalname,
+      rowCount: records!.length,
+      validRows: normalized.length,
+      invoiceCount: type === "invoices" ? invoiceCount : undefined,
+      errors: errors.slice(0, 200),
+      errorCount: errors.length,
+      rows: normalized.slice(0, 20),
+      canCommit: errors.length === 0,
+      requiresReview: ext !== "csv",
+      note:
+        type === "invoices"
+          ? "Historical invoices do not change inventory unless you enable stock adjustment. Review extracted amounts before confirming."
+          : pos
+            ? `POS inventory detected: SaleRate is the selling price in rupees; Curr.Qty is on-hand stock in Unit1. ${generatedSkus} missing/zero barcodes receive stable product IDs. Original columns are saved. Existing costs, images and stock-alert settings are retained; new items have no purchase cost or image in this file. Set purchase costs before relying on profit reports. Active order reservations are preserved.`
+            : "Stock is the total on-hand quantity; active order reservations are preserved.",
+    },
+  });
 });
-importsRouter.post("/:id/commit", (req, res) => {
+importsRouter.post("/:id/commit", async (req, res) => {
   const { adjustInventory } = z
       .object({ adjustInventory: z.boolean().default(false) })
       .strict()
       .parse(req.body || {}),
     bid = String(req.params.id);
-  const result = transaction(() => {
-    const batch = row(
+  const result = await transaction(async () => {
+    const batch = await row(
       "SELECT * FROM import_batches WHERE id=? AND actor_id=?",
       bid,
       req.user.id,
@@ -311,7 +378,7 @@ importsRouter.post("/:id/commit", (req, res) => {
     if (JSON.parse(batch!.errors_json).length)
       fail(422, "Fix CSV errors and upload again before importing.");
     if (
-      row(
+      await row(
         "SELECT id FROM import_batches WHERE checksum=? AND status=? AND id<>?",
         batch!.checksum,
         "committed",
@@ -320,7 +387,7 @@ importsRouter.post("/:id/commit", (req, res) => {
     )
       fail(409, "This file was already imported.");
     const values = JSON.parse(batch!.payload_json) as Record<string, any>[];
-    const fresh = validateRows(batch!.type, values);
+    const fresh = await validateRows(batch!.type, values);
     if (fresh.errors.length)
       throw new AppError(
         409,
@@ -328,29 +395,41 @@ importsRouter.post("/:id/commit", (req, res) => {
         "IMPORT_CONFLICT",
         fresh.errors.slice(0, 20),
       );
+    const statements: Statement[] = [];
+    const add = (sql: string, ...args: Statement["args"]) =>
+      statements.push({ sql, args });
+    const products = await productsForImport(values.map((p) => p.sku));
     if (batch!.type === "products") {
+      const categories = new Map(
+        (await rows("SELECT id,name FROM categories")).map((c) => [
+          c.name.toLowerCase(),
+          c.id,
+        ]),
+      );
       for (const p of values) {
-        let category = row(
-          "SELECT id FROM categories WHERE name=? COLLATE NOCASE",
-          p.category,
-        );
-        if (!category) {
-          const cid = id();
-          run("INSERT INTO categories(id,name) VALUES(?,?)", cid, p.category);
-          category = { id: cid };
+        let categoryId = categories.get(p.category.toLowerCase());
+        if (!categoryId) {
+          categoryId = id();
+          add(
+            "INSERT INTO categories(id,name) VALUES(?,?)",
+            categoryId,
+            p.category,
+          );
+          categories.set(p.category.toLowerCase(), categoryId);
         }
-        const old = row("SELECT * FROM products WHERE sku=?", p.sku),
+        const old = products.get(p.sku),
           pid = old?.id || id();
         const pos = p.source_format === "pos_inventory";
         const cost = pos && old ? old.cost : money(p.cost);
-        const threshold = pos && old ? old.low_stock_threshold : p.low_stock_threshold;
+        const threshold =
+          pos && old ? old.low_stock_threshold : p.low_stock_threshold;
         const image = pos && old ? old.image_url : p.image_url;
         const artwork = pos && old ? old.artwork : p.artwork;
         if (old)
-          run(
+          add(
             "UPDATE products SET name=?,category_id=?,price=?,mrp=?,cost=?,stock=?,low_stock_threshold=?,unit=?,image_url=?,artwork=?,updated_at=? WHERE id=?",
             p.name,
-            category.id,
+            categoryId,
             money(p.price),
             money(p.mrp),
             cost,
@@ -363,12 +442,12 @@ importsRouter.post("/:id/commit", (req, res) => {
             pid,
           );
         else
-          run(
+          add(
             "INSERT INTO products(id,sku,name,category_id,price,mrp,cost,stock,low_stock_threshold,unit,image_url,artwork,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             pid,
             p.sku,
             p.name,
-            category.id,
+            categoryId,
             money(p.price),
             money(p.mrp),
             cost,
@@ -380,11 +459,16 @@ importsRouter.post("/:id/commit", (req, res) => {
             now(),
             now(),
           );
-        if (pos) run(
-          "INSERT INTO product_import_sources(product_id,import_batch_id,format,record_json,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(product_id) DO UPDATE SET import_batch_id=excluded.import_batch_id,format=excluded.format,record_json=excluded.record_json,updated_at=excluded.updated_at",
-          pid, bid, p.source_format, JSON.stringify(p.source_record), now(),
-        );
-        run(
+        if (pos)
+          add(
+            "INSERT INTO product_import_sources(product_id,import_batch_id,format,record_json,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(product_id) DO UPDATE SET import_batch_id=excluded.import_batch_id,format=excluded.format,record_json=excluded.record_json,updated_at=excluded.updated_at",
+            pid,
+            bid,
+            p.source_format,
+            JSON.stringify(p.source_record),
+            now(),
+          );
+        add(
           "INSERT INTO inventory_movements VALUES(?,?,?,?,?,?,?)",
           id(),
           pid,
@@ -396,10 +480,30 @@ importsRouter.post("/:id/commit", (req, res) => {
         );
       }
     } else {
-      const numbers = [...new Set(values.map((v) => v.invoice_number))];
-      for (const number of numbers) {
-        const lines = values.filter((v) => v.invoice_number === number),
-          first = lines[0],
+      if (adjustInventory) {
+        const deductions = new Map<string, number>();
+        for (const line of values)
+          deductions.set(
+            line.sku,
+            (deductions.get(line.sku) || 0) + line.quantity,
+          );
+        for (const [sku, quantity] of deductions) {
+          const product = products.get(sku)!;
+          if (product.stock - product.reserved < quantity)
+            fail(
+              409,
+              `Not enough unreserved stock for ${product.name}. Import without stock adjustment for historical invoices.`,
+            );
+        }
+      }
+      const grouped = new Map<string, Record<string, any>[]>();
+      for (const line of values)
+        grouped.set(line.invoice_number, [
+          ...(grouped.get(line.invoice_number) || []),
+          line,
+        ]);
+      for (const [number, lines] of grouped) {
+        const first = lines[0],
           invoiceId = id();
         const subtotal = lines.reduce(
             (s, l) => s + money(l.unit_price) * l.quantity,
@@ -407,13 +511,13 @@ importsRouter.post("/:id/commit", (req, res) => {
           ),
           discount = lines.reduce((s, l) => s + money(l.discount), 0);
         const customer = first.customer_phone
-          ? row(
+          ? await row(
               "SELECT id FROM users WHERE phone=? AND role=?",
               first.customer_phone,
               "customer",
             )
           : undefined;
-        run(
+        add(
           "INSERT INTO invoices VALUES(?,?,?,?,?,?,?,?,?,?,?)",
           invoiceId,
           number,
@@ -428,24 +532,15 @@ importsRouter.post("/:id/commit", (req, res) => {
           now(),
         );
         for (const line of lines) {
-          const p = row(
-            "SELECT p.*,c.name category FROM products p JOIN categories c ON c.id=p.category_id WHERE p.sku=?",
-            line.sku,
-          )!;
+          const p = products.get(line.sku)!;
           if (adjustInventory) {
-            const result = run(
-              "UPDATE products SET stock=stock-?,updated_at=? WHERE id=? AND stock-reserved>=?",
+            add(
+              "UPDATE products SET stock=stock-?,updated_at=? WHERE id=?",
               line.quantity,
               now(),
               p.id,
-              line.quantity,
             );
-            if (Number(result.changes) !== 1)
-              fail(
-                409,
-                `Not enough unreserved stock for ${p.name}. Import without stock adjustment for historical invoices.`,
-              );
-            run(
+            add(
               "INSERT INTO inventory_movements VALUES(?,?,?,?,?,?,?)",
               id(),
               p.id,
@@ -456,7 +551,7 @@ importsRouter.post("/:id/commit", (req, res) => {
               now(),
             );
           }
-          run(
+          add(
             "INSERT INTO invoice_items VALUES(?,?,?,?,?,?,?,?,?,?)",
             id(),
             invoiceId,
@@ -472,13 +567,16 @@ importsRouter.post("/:id/commit", (req, res) => {
         }
       }
     }
-    run(
+    // Bounded HTTP payloads, one write transaction across every batch.
+    for (let start = 0; start < statements.length; start += 400)
+      await batchRun(statements.slice(start, start + 400));
+    await run(
       "UPDATE import_batches SET status=?,committed_at=? WHERE id=?",
       "committed",
       now(),
       bid,
     );
-    audit(req.user.id, `${batch!.type}.import`, bid, {
+    await audit(req.user.id, `${batch!.type}.import`, bid, {
       rows: values.length,
       adjustInventory,
     });
@@ -491,9 +589,9 @@ importsRouter.post("/:id/commit", (req, res) => {
   });
   res.json(result);
 });
-importsRouter.get("/", (_req, res) =>
+importsRouter.get("/", async (_req, res) =>
   res.json({
-    imports: rows(
+    imports: await rows(
       "SELECT id,type,filename,status,created_at createdAt,committed_at committedAt FROM import_batches ORDER BY created_at DESC LIMIT 50",
     ),
   }),

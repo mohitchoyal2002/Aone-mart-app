@@ -3,8 +3,12 @@ import { z } from "zod";
 import { row, rows, run, now, transaction } from "./db.js";
 import { requireAuth, adminOnly } from "./auth.js";
 import { id, fail, money, audit } from "./core.js";
-export function validateCoupon(code: string, userId: string, subtotal: number) {
-  const coupon = row(
+export async function validateCoupon(
+  code: string,
+  userId: string,
+  subtotal: number,
+) {
+  const coupon = await row(
     "SELECT * FROM coupons WHERE code=? AND active=1",
     code.trim().toUpperCase(),
   );
@@ -20,17 +24,17 @@ export function validateCoupon(code: string, userId: string, subtotal: number) {
       `Minimum cart value is ₹${coupon!.min_order / 100}.`,
       "INVALID_COUPON",
     );
-  const uses = row(
+  const uses = (await row(
     "SELECT count(*) count FROM coupon_redemptions WHERE coupon_id=? AND state<>?",
     coupon!.id,
     "released",
-  )!.count;
-  const userUses = row(
+  ))!.count;
+  const userUses = (await row(
     "SELECT count(*) count FROM coupon_redemptions WHERE coupon_id=? AND user_id=? AND state<>?",
     coupon!.id,
     userId,
     "released",
-  )!.count;
+  ))!.count;
   if (uses >= coupon!.max_uses || userUses >= coupon!.per_user_limit)
     fail(400, "Coupon usage limit reached.", "INVALID_COUPON");
   let discount =
@@ -88,18 +92,20 @@ export const serializeCoupon = (c: Record<string, any>) => ({
 });
 export const rewardsRouter = Router();
 rewardsRouter.use(requireAuth);
-rewardsRouter.get("/", (req, res) => {
-  const coupons = rows(
-    `SELECT c.*, (SELECT count(*) FROM coupon_redemptions r WHERE r.coupon_id=c.id AND r.state<>'released') uses FROM coupons c WHERE c.active=1 AND c.starts_at<=? AND c.expires_at>=? AND (c.target_user_id IS NULL OR c.target_user_id=?) AND (SELECT count(*) FROM coupon_redemptions r WHERE r.coupon_id=c.id AND r.user_id=? AND r.state<>'released')<c.per_user_limit ORDER BY c.created_at DESC`,
-    now(),
-    now(),
-    req.user.id,
-    req.user.id,
+rewardsRouter.get("/", async (req, res) => {
+  const coupons = (
+    await rows(
+      `SELECT c.*, (SELECT count(*) FROM coupon_redemptions r WHERE r.coupon_id=c.id AND r.state<>'released') uses FROM coupons c WHERE c.active=1 AND c.starts_at<=? AND c.expires_at>=? AND (c.target_user_id IS NULL OR c.target_user_id=?) AND (SELECT count(*) FROM coupon_redemptions r WHERE r.coupon_id=c.id AND r.user_id=? AND r.state<>'released')<c.per_user_limit ORDER BY c.created_at DESC`,
+      now(),
+      now(),
+      req.user.id,
+      req.user.id,
+    )
   ).filter((c) => c.uses < c.max_uses);
   res.json({
     points: req.user.points,
     coupons: coupons.map(serializeCoupon),
-    ledger: rows(
+    ledger: await rows(
       "SELECT id,amount,reason,created_at createdAt FROM point_ledger WHERE user_id=? ORDER BY created_at DESC LIMIT 40",
       req.user.id,
     ),
@@ -107,29 +113,31 @@ rewardsRouter.get("/", (req, res) => {
 });
 export const adminCouponsRouter = Router();
 adminCouponsRouter.use(requireAuth, adminOnly);
-adminCouponsRouter.get("/", (_req, res) =>
+adminCouponsRouter.get("/", async (_req, res) =>
   res.json({
-    coupons: rows(
-      `SELECT c.*,(SELECT count(*) FROM coupon_redemptions r WHERE r.coupon_id=c.id AND r.state<>'released') uses FROM coupons c ORDER BY c.created_at DESC`,
+    coupons: (
+      await rows(
+        `SELECT c.*,(SELECT count(*) FROM coupon_redemptions r WHERE r.coupon_id=c.id AND r.state<>'released') uses FROM coupons c ORDER BY c.created_at DESC`,
+      )
     ).map(serializeCoupon),
   }),
 );
-adminCouponsRouter.post("/", (req, res) => {
+adminCouponsRouter.post("/", async (req, res) => {
   const c = couponSchema.parse(req.body),
     cid = id();
-  transaction(() => {
-    if (row("SELECT id FROM coupons WHERE code=?", c.code))
+  await transaction(async () => {
+    if (await row("SELECT id FROM coupons WHERE code=?", c.code))
       fail(409, "Coupon code already exists.");
     if (
       c.targetUserId &&
-      !row(
+      !(await row(
         "SELECT id FROM users WHERE id=? AND role=? AND deleted_at IS NULL",
         c.targetUserId,
         "customer",
-      )
+      ))
     )
       fail(400, "Customer not found.");
-    run(
+    await run(
       "INSERT INTO coupons VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
       cid,
       c.code,
@@ -146,20 +154,20 @@ adminCouponsRouter.post("/", (req, res) => {
       c.active ? 1 : 0,
       now(),
     );
-    audit(req.user.id, "coupon.create", cid);
+    await audit(req.user.id, "coupon.create", cid);
   });
-  res
-    .status(201)
-    .json({
-      coupon: serializeCoupon(row("SELECT * FROM coupons WHERE id=?", cid)!),
-    });
+  res.status(201).json({
+    coupon: serializeCoupon(
+      (await row("SELECT * FROM coupons WHERE id=?", cid))!,
+    ),
+  });
 });
-adminCouponsRouter.patch("/:id", (req, res) => {
+adminCouponsRouter.patch("/:id", async (req, res) => {
   const { active } = z.object({ active: z.boolean() }).strict().parse(req.body),
     cid = String(req.params.id);
-  if (!row("SELECT id FROM coupons WHERE id=?", cid))
+  if (!(await row("SELECT id FROM coupons WHERE id=?", cid)))
     fail(404, "Coupon not found.");
-  run("UPDATE coupons SET active=? WHERE id=?", active ? 1 : 0, cid);
-  audit(req.user.id, "coupon.toggle", cid, { active });
+  await run("UPDATE coupons SET active=? WHERE id=?", active ? 1 : 0, cid);
+  await audit(req.user.id, "coupon.toggle", cid, { active });
   res.json({ ok: true });
 });

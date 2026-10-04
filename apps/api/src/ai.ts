@@ -67,7 +67,12 @@ export async function gemini(
   }
   const result = (await response.json()) as {
     candidates?: Array<{
-      content?: { parts?: Array<{ text?: string; thought?: boolean }> };
+      content?: {
+        parts?: Array<{
+          text?: string;
+          thought?: boolean;
+        }>;
+      };
     }>;
   };
   const answer = result.candidates?.[0]?.content?.parts
@@ -135,7 +140,7 @@ aiRouter.post(
       .strict()
       .parse(req.body);
     const asOf = now(),
-      summary = dashboard(d.from, d.to);
+      summary = await dashboard(d.from, d.to);
     const context = {
       asOf,
       timeZone: "Asia/Kolkata",
@@ -146,18 +151,18 @@ aiRouter.post(
       catalog: {
         limit: 200,
         total: summary.inventory.stats.products,
-        items: rows(
+        items: await rows(
           "SELECT p.sku,p.name,c.name category,p.price,p.stock,p.reserved,p.low_stock_threshold FROM products p JOIN categories c ON c.id=p.category_id WHERE p.deleted_at IS NULL ORDER BY p.stock-p.reserved LIMIT 200",
         ),
       },
       customers: {
         total: summary.customers?.total,
         limit: 50,
-        recent: rows(
+        recent: await rows(
           "SELECT u.name,u.points,u.created_at,(SELECT count(*) FROM orders o WHERE o.user_id=u.id) orders,(SELECT coalesce(sum(total),0) FROM invoices i WHERE i.user_id=u.id) lifetimeSpend FROM users u WHERE u.role='customer' AND u.deleted_at IS NULL ORDER BY u.created_at DESC LIMIT 50",
         ),
       },
-      coupons: rows(
+      coupons: await rows(
         "SELECT c.code,c.title,c.kind,c.value,c.min_order,c.expires_at,c.active,(SELECT count(*) FROM coupon_redemptions r WHERE r.coupon_id=c.id AND r.state<>?) uses FROM coupons c ORDER BY c.created_at DESC LIMIT 200",
         "released",
       ),

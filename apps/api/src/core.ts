@@ -34,13 +34,13 @@ export const password = z
   );
 export const money = (value: number) => Math.round(value * 100);
 export const rupees = (paise: number) => paise / 100;
-export function audit(
+export async function audit(
   actor: string,
   action: string,
   entity?: string,
   detail: unknown = {},
 ) {
-  run(
+  await run(
     "INSERT INTO audit_log VALUES(?,?,?,?,?,?)",
     id(),
     actor,
@@ -51,7 +51,12 @@ export function audit(
   );
 }
 export function page(q: Record<string, any>) {
-  return z.object({limit:z.coerce.number().int().min(1).max(100).default(30),offset:z.coerce.number().int().min(0).max(1000000).default(0)}).parse({limit:q.limit,offset:q.offset});
+  return z
+    .object({
+      limit: z.coerce.number().int().min(1).max(100).default(30),
+      offset: z.coerce.number().int().min(0).max(1000000).default(0),
+    })
+    .parse({ limit: q.limit, offset: q.offset });
 }
 export function escapeLike(v: string) {
   return v.replace(/[\\%_]/g, (c) => "\\" + c);

@@ -9,6 +9,7 @@ import jwt from "jsonwebtoken";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { rateLimit } from "express-rate-limit";
+import { DatabaseRateStore } from "./rate-store.js";
 import { config } from "./config.js";
 import { row, run, transaction, now } from "./db.js";
 import { AppError, fail, id, hash, phone, password } from "./core.js";
@@ -39,26 +40,26 @@ export const publicUser = (u: User) => ({
   points: u.points,
   createdAt: u.created_at,
 });
-export function verifyAccess(token: string): User {
+export async function verifyAccess(token: string): Promise<User> {
   try {
     const claims = jwt.verify(token, config.jwtSecret, {
       algorithms: ["HS256"],
       issuer: "aone-mart",
       audience: "aone-native",
     }) as jwt.JwtPayload;
-    const user = row<User>(
+    const user = await row<User>(
       "SELECT * FROM users WHERE id=? AND deleted_at IS NULL",
       String(claims.sub),
     );
     if (!user || user.auth_version !== claims.ver) throw new Error("revoked");
     if (
       !claims.sid ||
-      !row(
+      !(await row(
         "SELECT token_hash FROM refresh_sessions WHERE token_hash=? AND user_id=? AND expires_at>?",
         String(claims.sid),
         user.id,
         now(),
-      )
+      ))
     )
       throw new Error("session revoked");
     return user;
@@ -70,7 +71,7 @@ export function verifyAccess(token: string): User {
     );
   }
 }
-export const requireAuth = (
+export const requireAuth = async (
   req: Request,
   _res: Response,
   next: NextFunction,
@@ -78,7 +79,7 @@ export const requireAuth = (
   try {
     const token = req.headers.authorization?.match(/^Bearer (.+)$/)?.[1];
     if (!token) fail(401, "Please log in.", "UNAUTHORIZED");
-    req.user = verifyAccess(token!);
+    req.user = await verifyAccess(token!);
     next();
   } catch (e) {
     next(e);
@@ -88,7 +89,7 @@ export const adminOnly = (req: Request, _res: Response, next: NextFunction) =>
   req.user.role === "admin"
     ? next()
     : next(new AppError(403, "Admin access required.", "FORBIDDEN"));
-function issueTokens(user: User) {
+async function issueTokens(user: User) {
   const refreshToken = randomBytes(48).toString("base64url");
   const accessToken = jwt.sign(
     { role: user.role, ver: user.auth_version, sid: hash(refreshToken) },
@@ -101,7 +102,7 @@ function issueTokens(user: User) {
       expiresIn: "15m",
     },
   );
-  run(
+  await run(
     "INSERT INTO refresh_sessions VALUES(?,?,?,?)",
     hash(refreshToken),
     user.id,
@@ -111,6 +112,7 @@ function issueTokens(user: User) {
   return { accessToken, refreshToken, user: publicUser(user) };
 }
 const limit = rateLimit({
+  store: new DatabaseRateStore("auth:"),
   windowMs: 15 * 60 * 1000,
   limit: 20,
   standardHeaders: "draft-8",
@@ -128,15 +130,15 @@ authRouter.post("/signup", limit, async (req, res) => {
     .strict()
     .parse(req.body);
   const passwordHash = await bcrypt.hash(data.password, 12);
-  const user = transaction(() => {
-    if (row("SELECT id FROM users WHERE phone=?", data.phone))
+  const user = await transaction(async () => {
+    if (await row("SELECT id FROM users WHERE phone=?", data.phone))
       fail(
         409,
         "An account with this phone already exists. Contact the mart admin if it was disabled.",
       );
     const uid = id(),
       stamp = now();
-    run(
+    await run(
       "INSERT INTO users(id,name,phone,password_hash,role,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
       uid,
       data.name,
@@ -146,9 +148,9 @@ authRouter.post("/signup", limit, async (req, res) => {
       stamp,
       stamp,
     );
-    return row<User>("SELECT * FROM users WHERE id=?", uid)!;
+    return (await row<User>("SELECT * FROM users WHERE id=?", uid))!;
   });
-  res.status(201).json(issueTokens(user));
+  res.status(201).json(await issueTokens(user));
 });
 authRouter.post("/login", limit, async (req, res) => {
   const data = z
@@ -158,7 +160,7 @@ authRouter.post("/login", limit, async (req, res) => {
       role: z.enum(["admin", "customer"]),
     })
     .parse(req.body);
-  const user = row<User>(
+  const user = await row<User>(
     "SELECT * FROM users WHERE phone=? AND deleted_at IS NULL",
     data.phone,
   );
@@ -173,30 +175,33 @@ authRouter.post("/login", limit, async (req, res) => {
       "Phone or password is incorrect for this login.",
       "INVALID_CREDENTIALS",
     );
-  res.json(issueTokens(user!));
+  res.json(await issueTokens(user!));
 });
-authRouter.post("/refresh", limit, (req, res) => {
+authRouter.post("/refresh", limit, async (req, res) => {
   const { refreshToken } = z
     .object({ refreshToken: z.string().min(40).max(200) })
     .parse(req.body);
-  const result = transaction(() => {
-    const session = row(
+  const result = await transaction(async () => {
+    const session = await row(
       "SELECT * FROM refresh_sessions WHERE token_hash=? AND expires_at>?",
       hash(refreshToken),
       now(),
     );
     if (!session) fail(401, "Please log in again.", "UNAUTHORIZED");
-    const user = row<User>(
+    const user = await row<User>(
       "SELECT * FROM users WHERE id=? AND deleted_at IS NULL",
       session!.user_id,
     );
     if (!user) fail(401, "Please log in again.", "UNAUTHORIZED");
-    run("DELETE FROM refresh_sessions WHERE token_hash=?", hash(refreshToken));
-    return issueTokens(user!);
+    await run(
+      "DELETE FROM refresh_sessions WHERE token_hash=?",
+      hash(refreshToken),
+    );
+    return await issueTokens(user!);
   });
   res.json(result);
 });
-authRouter.post("/logout", requireAuth, (req, res) => {
+authRouter.post("/logout", requireAuth, async (req, res) => {
   const body = z
     .object({
       refreshToken: z.string().optional(),
@@ -204,13 +209,13 @@ authRouter.post("/logout", requireAuth, (req, res) => {
     })
     .parse(req.body || {});
   if (body.refreshToken)
-    run(
+    await run(
       "DELETE FROM refresh_sessions WHERE token_hash=? AND user_id=?",
       hash(body.refreshToken),
       req.user.id,
     );
   if (body.deviceToken)
-    run(
+    await run(
       "DELETE FROM device_tokens WHERE token=? AND user_id=?",
       body.deviceToken,
       req.user.id,
@@ -220,19 +225,21 @@ authRouter.post("/logout", requireAuth, (req, res) => {
 authRouter.get("/me", requireAuth, (req, res) =>
   res.json({ user: publicUser(req.user) }),
 );
-authRouter.patch("/me", requireAuth, (req, res) => {
+authRouter.patch("/me", requireAuth, async (req, res) => {
   const body = z
     .object({ name: z.string().trim().min(2).max(100) })
     .strict()
     .parse(req.body);
-  run(
+  await run(
     "UPDATE users SET name=?,updated_at=? WHERE id=?",
     body.name,
     now(),
     req.user.id,
   );
   res.json({
-    user: publicUser(row<User>("SELECT * FROM users WHERE id=?", req.user.id)!),
+    user: publicUser(
+      (await row<User>("SELECT * FROM users WHERE id=?", req.user.id))!,
+    ),
   });
 });
 authRouter.post("/change-password", requireAuth, limit, async (req, res) => {
@@ -242,16 +249,18 @@ authRouter.post("/change-password", requireAuth, limit, async (req, res) => {
   if (!(await bcrypt.compare(body.currentPassword, req.user.password_hash)))
     fail(400, "Current password is incorrect.");
   const newHash = await bcrypt.hash(body.newPassword, 12);
-  transaction(() => {
-    run(
+  await transaction(async () => {
+    await run(
       "UPDATE users SET password_hash=?,auth_version=auth_version+1,updated_at=? WHERE id=?",
       newHash,
       now(),
       req.user.id,
     );
-    run("DELETE FROM refresh_sessions WHERE user_id=?", req.user.id);
+    await run("DELETE FROM refresh_sessions WHERE user_id=?", req.user.id);
   });
   res.json(
-    issueTokens(row<User>("SELECT * FROM users WHERE id=?", req.user.id)!),
+    await issueTokens(
+      (await row<User>("SELECT * FROM users WHERE id=?", req.user.id))!,
+    ),
   );
 });

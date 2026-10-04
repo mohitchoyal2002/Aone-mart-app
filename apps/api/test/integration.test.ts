@@ -8,6 +8,9 @@ import { once } from "node:events";
 import { WebSocket } from "ws";
 process.env.NODE_ENV = "test";
 process.env.DATABASE_PATH = ":memory:";
+delete process.env.TURSO_DATABASE_URL;
+delete process.env.TURSO_AUTH_TOKEN;
+delete process.env.VERCEL;
 process.env.JWT_SECRET =
   "integration-tests-only-random-secret-aaaaaaaaaaaaaaaaaaaa";
 process.env.GEMINI_API_KEY = "test-key-never-sent-to-provider";
@@ -44,7 +47,7 @@ const newCoupon = (code: string, extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 before(async () => {
-  run(
+  await run(
     "INSERT INTO users(id,name,phone,password_hash,role,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
     adminId,
     "Test Admin",
@@ -136,7 +139,8 @@ test("quote does not reserve stock; order reserves once with idempotent retries"
   assert.equal(q.status, 200);
   assert.equal(q.body.quote.total, 90000);
   assert.equal(
-    row("SELECT reserved FROM products WHERE id=?", productId)!.reserved,
+    (await row("SELECT reserved FROM products WHERE id=?", productId))!
+      .reserved,
     0,
   );
   const key = randomUUID();
@@ -148,7 +152,8 @@ test("quote does not reserve stock; order reserves once with idempotent retries"
   assert.equal(r.status, 201);
   orderId = r.body.order.id;
   assert.equal(
-    row("SELECT reserved FROM products WHERE id=?", productId)!.reserved,
+    (await row("SELECT reserved FROM products WHERE id=?", productId))!
+      .reserved,
     2,
   );
   const retry = await request(app)
@@ -159,7 +164,8 @@ test("quote does not reserve stock; order reserves once with idempotent retries"
   assert.equal(retry.status, 200);
   assert.equal(retry.body.order.id, orderId);
   assert.equal(
-    row("SELECT reserved FROM products WHERE id=?", productId)!.reserved,
+    (await row("SELECT reserved FROM products WHERE id=?", productId))!
+      .reserved,
     2,
   );
   assert.equal(
@@ -255,15 +261,15 @@ test("pickup commits invoice, inventory and rewards exactly once", async () => {
   assert.equal(picked.status, 200);
   assert.equal(picked.body.order.pointsEarned, 9);
   assert.deepEqual(
-    row("SELECT stock,reserved FROM products WHERE id=?", productId),
+    await row("SELECT stock,reserved FROM products WHERE id=?", productId),
     Object.assign(Object.create(null), { stock: 18, reserved: 0 }),
   );
   assert.equal(
-    row("SELECT points FROM users WHERE id=?", customerId)!.points,
+    (await row("SELECT points FROM users WHERE id=?", customerId))!.points,
     9,
   );
   assert.equal(
-    rows("SELECT * FROM invoices WHERE order_id=?", orderId).length,
+    (await rows("SELECT * FROM invoices WHERE order_id=?", orderId)).length,
     1,
   );
   assert.equal(
@@ -276,11 +282,11 @@ test("pickup commits invoice, inventory and rewards exactly once", async () => {
     200,
   );
   assert.equal(
-    row("SELECT points FROM users WHERE id=?", customerId)!.points,
+    (await row("SELECT points FROM users WHERE id=?", customerId))!.points,
     9,
   );
   assert.equal(
-    rows("SELECT * FROM invoices WHERE order_id=?", orderId).length,
+    (await rows("SELECT * FROM invoices WHERE order_id=?", orderId)).length,
     1,
   );
   const sales = await request(app).get("/api/admin/reports/sales").set(auth());
@@ -302,7 +308,7 @@ test("rejecting refunds points and coupon and releases stock; requires rejection
     .send(input);
   assert.equal(placed.status, 201);
   assert.equal(
-    row("SELECT points FROM users WHERE id=?", customerId)!.points,
+    (await row("SELECT points FROM users WHERE id=?", customerId))!.points,
     4,
   );
   const oid = placed.body.order.id;
@@ -321,11 +327,12 @@ test("rejecting refunds points and coupon and releases stock; requires rejection
     .send({ status: "rejected", reason: "Item unavailable" });
   assert.equal(rejected.status, 200);
   assert.equal(
-    row("SELECT points FROM users WHERE id=?", customerId)!.points,
+    (await row("SELECT points FROM users WHERE id=?", customerId))!.points,
     9,
   );
   assert.equal(
-    row("SELECT reserved FROM products WHERE id=?", productId)!.reserved,
+    (await row("SELECT reserved FROM products WHERE id=?", productId))!
+      .reserved,
     0,
   );
   assert.equal(
@@ -365,7 +372,8 @@ test("overselling and duplicate line items are rejected atomically", async () =>
     .send({ items: [{ productId, quantity: 19 }] });
   assert.equal(r.status, 409);
   assert.equal(
-    row("SELECT reserved FROM products WHERE id=?", productId)!.reserved,
+    (await row("SELECT reserved FROM products WHERE id=?", productId))!
+      .reserved,
     0,
   );
   assert.equal(
@@ -393,7 +401,10 @@ test("CSV previews do not mutate data and commits are idempotent", async () => {
     .attach("file", Buffer.from(csv), "products.csv");
   assert.equal(p.status, 201);
   assert.equal(p.body.preview.canCommit, true);
-  assert.equal(row("SELECT id FROM products WHERE sku=?", "SOAP"), undefined);
+  assert.equal(
+    await row("SELECT id FROM products WHERE sku=?", "SOAP"),
+    undefined,
+  );
   const cid = p.body.preview.id;
   assert.equal(
     (
@@ -404,7 +415,7 @@ test("CSV previews do not mutate data and commits are idempotent", async () => {
     ).status,
     200,
   );
-  assert.ok(row("SELECT id FROM products WHERE sku=?", "SOAP"));
+  assert.ok(await row("SELECT id FROM products WHERE sku=?", "SOAP"));
   const again = await request(app)
     .post(`/api/admin/imports/${cid}/commit`)
     .set(auth())
@@ -440,33 +451,55 @@ test("invalid CSV rows and duplicate SKUs block the entire import", async () => 
     ).status,
     422,
   );
-  assert.equal(row("SELECT id FROM products WHERE sku=?", "BAD"), undefined);
+  assert.equal(
+    await row("SELECT id FROM products WHERE sku=?", "BAD"),
+    undefined,
+  );
 });
-const posHeader = "NameToDisplay,Barcode,MRP,SaleRate,Curr.Qty,Alias,GroupName,Category,Brand,Product,Unit1,ProdConv1,Unit2\n";
+const posHeader =
+  "NameToDisplay,Barcode,MRP,SaleRate,Curr.Qty,Alias,GroupName,Category,Brand,Product,Unit1,ProdConv1,Unit2\n";
 async function previewPos(lines: string) {
-  return request(app).post("/api/admin/imports/preview").set(auth())
-    .field("type", "products").attach("file", Buffer.from(posHeader + lines), "inventory.csv");
+  return request(app)
+    .post("/api/admin/imports/preview")
+    .set(auth())
+    .field("type", "products")
+    .attach("file", Buffer.from(posHeader + lines), "inventory.csv");
 }
 test("POS export maps exact prices and stock and saves all source columns", async () => {
-  const p = await previewPos("Test chocolate,0089000001,10,9.8,7,,Test Supplier,Chocolate,Test Brand,Chocolate original,Pack,1,PCS\n");
+  const p = await previewPos(
+    "Test chocolate,0089000001,10,9.8,7,,Test Supplier,Chocolate,Test Brand,Chocolate original,Pack,1,PCS\n",
+  );
   assert.equal(p.status, 201);
   assert.equal(p.body.preview.canCommit, true);
   assert.match(p.body.preview.note, /POS inventory detected/);
-  assert.equal(row("SELECT id FROM products WHERE sku='0089000001'"), undefined);
-  const commit = await request(app).post(`/api/admin/imports/${p.body.preview.id}/commit`).set(auth()).send({});
+  assert.equal(
+    await row("SELECT id FROM products WHERE sku='0089000001'"),
+    undefined,
+  );
+  const commit = await request(app)
+    .post(`/api/admin/imports/${p.body.preview.id}/commit`)
+    .set(auth())
+    .send({});
   assert.equal(commit.status, 200);
-  const product = row("SELECT * FROM products WHERE sku='0089000001'")!;
+  const product = (await row("SELECT * FROM products WHERE sku='0089000001'"))!;
   assert.equal(product.price, 980);
   assert.equal(product.mrp, 1000);
   assert.equal(product.stock, 7);
   assert.equal(product.unit, "Pack");
-  const source = JSON.parse(row("SELECT record_json FROM product_import_sources WHERE product_id=?", product.id)!.record_json);
+  const source = JSON.parse(
+    (await row(
+      "SELECT record_json FROM product_import_sources WHERE product_id=?",
+      product.id,
+    ))!.record_json,
+  );
   assert.equal(source.Barcode, "0089000001");
   assert.equal(source.Brand, "Test Brand");
   assert.equal(source.GroupName, "Test Supplier");
   assert.equal(source.ProdConv1, "1");
   assert.equal(source.Unit2, "PCS");
-  const replay = await previewPos("Test chocolate,0089000001,10,9.8,7,,Test Supplier,Chocolate,Test Brand,Chocolate original,Pack,1,PCS\n");
+  const replay = await previewPos(
+    "Test chocolate,0089000001,10,9.8,7,,Test Supplier,Chocolate,Test Brand,Chocolate original,Pack,1,PCS\n",
+  );
   assert.equal(replay.status, 409);
 });
 test("zero POS barcodes get distinct stable SKUs when file rows and quantities change", async () => {
@@ -479,47 +512,116 @@ test("zero POS barcodes get distinct stable SKUs when file rows and quantities c
   const skus = p.body.preview.rows.map((x: Record<string, any>) => x.sku);
   assert.equal(new Set(skus).size, 2);
   assert.ok(skus.every((sku: string) => sku.startsWith("POS-")));
-  assert.equal((await request(app).post(`/api/admin/imports/${p.body.preview.id}/commit`).set(auth()).send({})).status, 200);
-  const before = row("SELECT id FROM products WHERE sku=?", skus[0])!.id;
-  const changed = await previewPos(lines[1] + lines[0].replace(",15,0,", ",14,4,"));
+  assert.equal(
+    (
+      await request(app)
+        .post(`/api/admin/imports/${p.body.preview.id}/commit`)
+        .set(auth())
+        .send({})
+    ).status,
+    200,
+  );
+  const before = (await row("SELECT id FROM products WHERE sku=?", skus[0]))!
+    .id;
+  const changed = await previewPos(
+    lines[1] + lines[0].replace(",15,0,", ",14,4,"),
+  );
   assert.equal(changed.body.preview.canCommit, true);
-  assert.deepEqual(changed.body.preview.rows.map((x: Record<string, any>) => x.sku), [...skus].reverse());
-  assert.equal((await request(app).post(`/api/admin/imports/${changed.body.preview.id}/commit`).set(auth()).send({})).status, 200);
-  assert.equal(row("SELECT id FROM products WHERE sku=?", skus[0])!.id, before);
-  assert.equal(row("SELECT stock FROM products WHERE sku=?", skus[0])!.stock, 4);
+  assert.deepEqual(
+    changed.body.preview.rows.map((x: Record<string, any>) => x.sku),
+    [...skus].reverse(),
+  );
+  assert.equal(
+    (
+      await request(app)
+        .post(`/api/admin/imports/${changed.body.preview.id}/commit`)
+        .set(auth())
+        .send({})
+    ).status,
+    200,
+  );
+  assert.equal(
+    (await row("SELECT id FROM products WHERE sku=?", skus[0]))!.id,
+    before,
+  );
+  assert.equal(
+    (await row("SELECT stock FROM products WHERE sku=?", skus[0]))!.stock,
+    4,
+  );
 });
 test("POS stock snapshots preserve current reservations and manually recorded costs and images", async () => {
-  const product = row("SELECT * FROM products WHERE sku='0089000001'")!;
-  run("UPDATE products SET reserved=2 WHERE id=?", product.id);
-  const p = await previewPos("Test chocolate,0089000001,10,9.5,6,,New Supplier,Chocolate,New Brand,Chocolate original,Pack,1,PCS\n");
+  const product = (await row("SELECT * FROM products WHERE sku='0089000001'"))!;
+  await run("UPDATE products SET reserved=2 WHERE id=?", product.id);
+  const p = await previewPos(
+    "Test chocolate,0089000001,10,9.5,6,,New Supplier,Chocolate,New Brand,Chocolate original,Pack,1,PCS\n",
+  );
   assert.equal(p.body.preview.canCommit, true);
   // Admin edits made after preview must also survive a stock-only POS commit.
-  run("UPDATE products SET cost=650,image_url='https://example.com/chocolate.png',artwork='snack',low_stock_threshold=3 WHERE id=?", product.id);
-  assert.equal((await request(app).post(`/api/admin/imports/${p.body.preview.id}/commit`).set(auth()).send({})).status, 200);
-  const updated = row("SELECT * FROM products WHERE id=?", product.id)!;
+  await run(
+    "UPDATE products SET cost=650,image_url='https://example.com/chocolate.png',artwork='snack',low_stock_threshold=3 WHERE id=?",
+    product.id,
+  );
+  assert.equal(
+    (
+      await request(app)
+        .post(`/api/admin/imports/${p.body.preview.id}/commit`)
+        .set(auth())
+        .send({})
+    ).status,
+    200,
+  );
+  const updated = (await row("SELECT * FROM products WHERE id=?", product.id))!;
   assert.equal(updated.stock, 6);
   assert.equal(updated.reserved, 2);
   assert.equal(updated.cost, 650);
   assert.equal(updated.image_url, "https://example.com/chocolate.png");
   assert.equal(updated.artwork, "snack");
   assert.equal(updated.low_stock_threshold, 3);
-  const bad = await previewPos("Test chocolate,0089000001,10,9.5,1,,Supplier,Chocolate,,Chocolate original,Pack,1,PCS\n");
+  const bad = await previewPos(
+    "Test chocolate,0089000001,10,9.5,1,,Supplier,Chocolate,,Chocolate original,Pack,1,PCS\n",
+  );
   assert.equal(bad.body.preview.canCommit, false);
-  assert.equal((await request(app).post(`/api/admin/imports/${bad.body.preview.id}/commit`).set(auth()).send({})).status, 422);
-  assert.equal(row("SELECT stock FROM products WHERE id=?", product.id)!.stock, 6);
-  run("UPDATE products SET reserved=0 WHERE id=?", product.id);
+  assert.equal(
+    (
+      await request(app)
+        .post(`/api/admin/imports/${bad.body.preview.id}/commit`)
+        .set(auth())
+        .send({})
+    ).status,
+    422,
+  );
+  assert.equal(
+    (await row("SELECT stock FROM products WHERE id=?", product.id))!.stock,
+    6,
+  );
+  await run("UPDATE products SET reserved=0 WHERE id=?", product.id);
 });
 test("POS negative or fractional stock and repeated real barcodes block the whole import", async () => {
-  const p = await previewPos([
-    "Fractional item,POS-BAD1,20,10,1.5,,Supplier,Containers,,Fractional,Pack,1,PCS\n",
-    "Negative item,POS-BAD2,20,10,-1,,Supplier,Containers,,Negative,Pack,1,PCS\n",
-    "Duplicate first,POS-BAD3,20,10,2,,Supplier,Containers,,First,Pack,1,PCS\n",
-    "Duplicate second,POS-BAD3,20,10,2,,Supplier,Containers,,Second,Pack,1,PCS\n",
-  ].join(""));
+  const p = await previewPos(
+    [
+      "Fractional item,POS-BAD1,20,10,1.5,,Supplier,Containers,,Fractional,Pack,1,PCS\n",
+      "Negative item,POS-BAD2,20,10,-1,,Supplier,Containers,,Negative,Pack,1,PCS\n",
+      "Duplicate first,POS-BAD3,20,10,2,,Supplier,Containers,,First,Pack,1,PCS\n",
+      "Duplicate second,POS-BAD3,20,10,2,,Supplier,Containers,,Second,Pack,1,PCS\n",
+    ].join(""),
+  );
   assert.equal(p.body.preview.canCommit, false);
   assert.ok(p.body.preview.errorCount >= 3);
-  assert.equal((await request(app).post(`/api/admin/imports/${p.body.preview.id}/commit`).set(auth()).send({})).status, 422);
-  assert.equal(row("SELECT count(*) count FROM products WHERE sku LIKE 'POS-BAD%' ")!.count, 0);
+  assert.equal(
+    (
+      await request(app)
+        .post(`/api/admin/imports/${p.body.preview.id}/commit`)
+        .set(auth())
+        .send({})
+    ).status,
+    422,
+  );
+  assert.equal(
+    (await row(
+      "SELECT count(*) count FROM products WHERE sku LIKE 'POS-BAD%' ",
+    ))!.count,
+    0,
+  );
 });
 test("invoice import groups lines, keeps historical stock unchanged and blocks duplicate numbers", async () => {
   const csv =
@@ -542,11 +644,11 @@ test("invoice import groups lines, keeps historical stock unchanged and blocks d
     200,
   );
   assert.equal(
-    row("SELECT stock FROM products WHERE id=?", productId)!.stock,
+    (await row("SELECT stock FROM products WHERE id=?", productId))!.stock,
     18,
   );
   assert.equal(
-    row("SELECT total FROM invoices WHERE number=?", "HIST-1")!.total,
+    (await row("SELECT total FROM invoices WHERE number=?", "HIST-1"))!.total,
     103000,
   );
   const sales = await request(app)
@@ -576,11 +678,11 @@ test("failed invoice stock adjustment rolls back invoice and all line deductions
     .send({ adjustInventory: true });
   assert.equal(commit.status, 409);
   assert.equal(
-    row("SELECT id FROM invoices WHERE number=?", "ROLLBACK"),
+    await row("SELECT id FROM invoices WHERE number=?", "ROLLBACK"),
     undefined,
   );
   assert.equal(
-    row("SELECT stock FROM products WHERE sku=?", "SOAP")!.stock,
+    (await row("SELECT stock FROM products WHERE sku=?", "SOAP"))!.stock,
     20,
   );
 });
@@ -600,8 +702,10 @@ test("soft deletion retains history and revokes access and refresh credentials",
     401,
   );
   assert.equal(
-    row("SELECT count(*) count FROM invoices WHERE user_id=?", customerId)!
-      .count,
+    (await row(
+      "SELECT count(*) count FROM invoices WHERE user_id=?",
+      customerId,
+    ))!.count,
     1,
   );
   assert.equal(
@@ -672,7 +776,7 @@ test("AI sees aggregate context and provider failures return a safe error", asyn
   }
 });
 test("new-order notification outbox includes the custom Android tone and persists after dispatch", async () => {
-  const notifications = rows(
+  const notifications = await rows(
     "SELECT * FROM notification_outbox WHERE user_id=?",
     adminId,
   );
@@ -682,13 +786,12 @@ test("new-order notification outbox includes the custom Android tone and persist
   assert.ok(data.eventId);
   assert.ok(data.orderId);
 });
-
 test("price changes require a fresh checkout total and do not reserve stock", async () => {
   const input = { items: [{ productId, quantity: 1 }], expectedTotal: 1 };
-  const reserved = row(
+  const reserved = (await row(
     "SELECT reserved FROM products WHERE id=?",
     productId,
-  )!.reserved;
+  ))!.reserved;
   const failed = await request(app)
     .post("/api/orders")
     .set(auth(otherToken))
@@ -697,7 +800,8 @@ test("price changes require a fresh checkout total and do not reserve stock", as
   assert.equal(failed.status, 409);
   assert.equal(failed.body.code, "PRICE_CHANGED");
   assert.equal(
-    row("SELECT reserved FROM products WHERE id=?", productId)!.reserved,
+    (await row("SELECT reserved FROM products WHERE id=?", productId))!
+      .reserved,
     reserved,
   );
   const quote = await request(app)
@@ -724,7 +828,6 @@ test("price changes require a fresh checkout total and do not reserve stock", as
     .set(auth(otherToken))
     .send({ status: "cancelled" });
 });
-
 test("customer order filters apply before pagination and exclude other users", async () => {
   const active = await request(app)
     .get("/api/orders?status=active&limit=1")
@@ -747,7 +850,6 @@ test("customer order filters apply before pagination and exclude other users", a
     422,
   );
 });
-
 test("logout invalidates that access session immediately while other sessions remain valid", async () => {
   const session = await request(app)
     .post("/api/auth/login")
@@ -776,7 +878,6 @@ test("logout invalidates that access session immediately while other sessions re
     200,
   );
 });
-
 test("sales CSV export and store settings are available only to administrators", async () => {
   const exported = await request(app)
     .get("/api/admin/reports/export/sales?from=2026-01-02&to=2026-01-02")
@@ -810,10 +911,10 @@ test("sales CSV export and store settings are available only to administrators",
     .set(auth())
     .send(settings.body.store);
 });
-
 test("authenticated realtime delivers the custom tone and stops a revoked session", async () => {
-  const { attachRealtime, queueNotification, publishPending } =
-    await import("../src/notifications.js");
+  const { attachRealtime, queueNotification, publishPending } = await import(
+    "../src/notifications.js"
+  );
   const session = await request(app)
     .post("/api/auth/login")
     .send({ phone: "9999999999", password: pass, role: "admin" });
@@ -821,7 +922,11 @@ test("authenticated realtime delivers the custom tone and stops a revoked sessio
   attachRealtime(server);
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
-  const port = (server.address() as { port: number }).port;
+  const port = (
+    server.address() as {
+      port: number;
+    }
+  ).port;
   const socket = new WebSocket(`ws://127.0.0.1:${port}/realtime`);
   const timeout = () => AbortSignal.timeout(3000);
   try {
@@ -832,14 +937,14 @@ test("authenticated realtime delivers the custom tone and stops a revoked sessio
     );
     assert.equal(JSON.parse(String((await ready)[0])).type, "ready");
     const received = once(socket, "message", { signal: timeout() });
-    const nid = queueNotification(
+    const nid = await queueNotification(
       adminId,
       "New order",
       "Realtime integration check",
       { orderId: randomUUID() },
       "aone_order.wav",
     );
-    publishPending();
+    await publishPending();
     const message = JSON.parse(String((await received)[0]));
     assert.equal(message.id, nid);
     assert.equal(message.sound, "aone_order.wav");
@@ -848,17 +953,100 @@ test("authenticated realtime delivers the custom tone and stops a revoked sessio
       .set(auth(session.body.accessToken))
       .send({ refreshToken: session.body.refreshToken });
     const closed = once(socket, "close", { signal: timeout() });
-    queueNotification(
+    await queueNotification(
       adminId,
       "New order",
       "Revoked session cannot receive",
       {},
       "aone_order.wav",
     );
-    publishPending();
+    await publishPending();
     assert.equal((await closed)[0], 4401);
   } finally {
     socket.terminate();
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
+});
+
+test("simultaneous checkouts cannot reserve the same last unit", async () => {
+  const product = await request(app)
+    .post("/api/admin/inventory")
+    .set(auth())
+    .send({
+      sku: "CONCURRENT-LAST",
+      name: "Concurrent test item",
+      categoryId,
+      price: 1000,
+      mrp: 1000,
+      cost: 0,
+      stock: 1,
+      lowStockThreshold: 0,
+      unit: "Pack",
+      imageUrl: "",
+      artwork: "bag",
+    });
+  assert.equal(product.status, 201);
+  const pid = product.body.product.id;
+  const results = await Promise.all(
+    [0, 1].map(() =>
+      request(app)
+        .post("/api/orders")
+        .set(auth(otherToken))
+        .set("Idempotency-Key", randomUUID())
+        .send({ items: [{ productId: pid, quantity: 1 }] }),
+    ),
+  );
+  assert.deepEqual(results.map((result) => result.status).sort(), [201, 409]);
+  assert.equal(
+    (await row("SELECT reserved FROM products WHERE id=?", pid))!.reserved,
+    1,
+  );
+  const successful = results.find((result) => result.status === 201)!;
+  await request(app)
+    .patch(`/api/admin/orders/${successful.body.order.id}/status`)
+    .set(auth())
+    .send({ status: "rejected", reason: "Concurrency test completed" });
+});
+
+test("simultaneous retries return one order and one reservation", async () => {
+  const p = await row("SELECT id FROM products WHERE sku='CONCURRENT-LAST'");
+  const key = randomUUID();
+  const results = await Promise.all(
+    [0, 1].map(() =>
+      request(app)
+        .post("/api/orders")
+        .set(auth(otherToken))
+        .set("Idempotency-Key", key)
+        .send({ items: [{ productId: p!.id, quantity: 1 }] }),
+    ),
+  );
+  assert.deepEqual(results.map((result) => result.status).sort(), [200, 201]);
+  assert.equal(results[0].body.order.id, results[1].body.order.id);
+  assert.equal(
+    (await row("SELECT reserved FROM products WHERE id=?", p!.id))!.reserved,
+    1,
+  );
+  assert.equal(
+    (await row(
+      "SELECT count(*) count FROM orders WHERE user_id=? AND idempotency_key=?",
+      otherId,
+      key,
+    ))!.count,
+    1,
+  );
+});
+
+test("rate limits share atomic counters across server instances and expire", async () => {
+  const { DatabaseRateStore } = await import("../src/rate-store.js");
+  const first = new DatabaseRateStore("test-shared:"),
+    second = new DatabaseRateStore("test-shared:");
+  const hits = await Promise.all(
+    [first, second, first, second].map((store) => store.increment("client")),
+  );
+  assert.deepEqual(hits.map((hit) => hit.totalHits).sort(), [1, 2, 3, 4]);
+  await run(
+    "UPDATE rate_limit_buckets SET reset_at=0 WHERE key='test-shared:client'",
+  );
+  assert.equal((await second.increment("client")).totalHits, 1);
+  await first.resetKey("client");
 });

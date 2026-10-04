@@ -4,6 +4,7 @@ import helmet from "helmet";
 import multer from "multer";
 import { ZodError } from "zod";
 import { rateLimit } from "express-rate-limit";
+import { DatabaseRateStore } from "./rate-store.js";
 import { authRouter } from "./auth.js";
 import { catalogRouter, inventoryRouter } from "./catalog.js";
 import { ordersRouter, adminOrdersRouter } from "./orders.js";
@@ -20,6 +21,10 @@ export const app = express();
 app.disable("x-powered-by");
 if (config.trustProxy > 0) app.set("trust proxy", config.trustProxy);
 app.use(helmet());
+app.use((_req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  next();
+});
 const origins = (process.env.CORS_ORIGINS || "").split(",").filter(Boolean);
 app.use(
   cors({
@@ -29,6 +34,7 @@ app.use(
 app.use(express.json({ limit: "256kb" }));
 app.use(
   rateLimit({
+    store: new DatabaseRateStore("api:"),
     windowMs: 60000,
     limit: 180,
     standardHeaders: "draft-8",
@@ -40,9 +46,15 @@ app.use(
     },
   }),
 );
-app.get("/health", (_req, res) => {
-  row("SELECT 1");
-  res.json({ ok: true, service: "aone-mart-api", version: "1.0.0" });
+app.get("/health", async (_req, res) => {
+  await row("SELECT 1");
+  res.json({
+    ok: true,
+    service: "aone-mart-api",
+    version: "1.1.0",
+    database: config.tursoUrl ? "turso" : "sqlite",
+    realtime: config.serverless ? "polling" : "websocket",
+  });
 });
 app.use("/api/auth", authRouter);
 app.use("/api/catalog", catalogRouter);
@@ -68,35 +80,29 @@ app.use(
     _next: express.NextFunction,
   ) => {
     if (error instanceof ZodError) {
-      res
-        .status(422)
-        .json({
-          error: "Check the entered details.",
-          code: "VALIDATION_ERROR",
-          details: error.issues.map((i) => ({
-            field: i.path.join("."),
-            message: i.message,
-          })),
-        });
+      res.status(422).json({
+        error: "Check the entered details.",
+        code: "VALIDATION_ERROR",
+        details: error.issues.map((i) => ({
+          field: i.path.join("."),
+          message: i.message,
+        })),
+      });
       return;
     }
     if (error instanceof AppError) {
-      res
-        .status(error.status)
-        .json({
-          error: error.message,
-          code: error.code,
-          ...(error.details ? { details: error.details } : {}),
-        });
+      res.status(error.status).json({
+        error: error.message,
+        code: error.code,
+        ...(error.details ? { details: error.details } : {}),
+      });
       return;
     }
     if (error instanceof multer.MulterError) {
-      res
-        .status(413)
-        .json({
-          error: "Upload one file, no larger than 5 MB.",
-          code: "UPLOAD_LIMIT",
-        });
+      res.status(413).json({
+        error: "Upload one file, no larger than 5 MB.",
+        code: "UPLOAD_LIMIT",
+      });
       return;
     }
     if (error instanceof SyntaxError && "body" in error) {
@@ -107,11 +113,11 @@ app.use(
     }
     // Log only a class and code, never request bodies, passwords, keys, file bytes or provider errors.
     console.error("API error", error instanceof Error ? error.name : "unknown");
-    res
-      .status(500)
-      .json({
-        error: "Something went wrong. Please try again.",
-        code: "INTERNAL_ERROR",
-      });
+    res.status(500).json({
+      error: "Something went wrong. Please try again.",
+      code: "INTERNAL_ERROR",
+    });
   },
 );
+
+export default app;

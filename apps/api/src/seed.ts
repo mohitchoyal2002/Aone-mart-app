@@ -108,7 +108,7 @@ const catalog = [
     "250 g",
   ],
 ] as const;
-transaction(() => {
+await transaction(async () => {
   for (const [
     category,
     artwork,
@@ -120,21 +120,21 @@ transaction(() => {
     stock,
     unit,
   ] of catalog) {
-    let c = row("SELECT id FROM categories WHERE name=?", category);
+    let c = await row("SELECT id FROM categories WHERE name=?", category);
     if (!c) {
       const cid = id();
-      run(
+      await run(
         "INSERT INTO categories(id,name,icon,sort_order) VALUES(?,?,?,?)",
         cid,
         category,
         artwork,
-        Number(row("SELECT count(*) count FROM categories")!.count),
+        Number((await row("SELECT count(*) count FROM categories"))!.count),
       );
       c = { id: cid };
     }
-    if (!row("SELECT id FROM products WHERE sku=?", sku)) {
+    if (!(await row("SELECT id FROM products WHERE sku=?", sku))) {
       const pid = id();
-      run(
+      await run(
         "INSERT INTO products(id,sku,name,category_id,price,mrp,cost,stock,unit,artwork,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
         pid,
         sku,
@@ -151,7 +151,11 @@ transaction(() => {
       );
     }
   }
-  run("INSERT OR REPLACE INTO settings VALUES(?,?)", "demoCatalog", "true");
+  await run(
+    "INSERT OR REPLACE INTO settings VALUES(?,?)",
+    "demoCatalog",
+    "true",
+  );
 });
 console.log(
   "12 SAMPLE products created. This is demo data, not the mart’s verified catalog. No fake sales or customers were added.",

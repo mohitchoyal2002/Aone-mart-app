@@ -1,9 +1,37 @@
 # Aone Mart backend deployment
 
-The backend is a Node 24 Docker service. It needs one running instance and a
-persistent `/data` disk for SQLite. Its public HTTPS URL is entered on the
+The backend runs on Node 24. Vercel uses the permanent Turso database;
+local development and Docker deployments can use SQLite with a persistent disk. Its public HTTPS URL is entered on the
 Android app's first connection screen; use the origin without `/api` at the end.
 Admin and customer endpoints retain their own password and role checks.
+
+## Vercel + Turso
+
+Project `aone-mart-app` is linked to this repository; root directory `apps/api`,
+Express framework, Node 24, Mumbai function region. The owner approved the free
+Turso integration and created `aone-mart-db` in Mumbai. Production verification
+is in progress; do not treat an unverified preview URL as the app service.
+
+- Build command: `npm run prepare:vercel`.
+- Permanent storage credentials: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`.
+- Runtime secrets: `JWT_SECRET`, `GEMINI_API_KEY`. Configure these privately in
+  the production environment. `ENABLE_NOTIFICATIONS=false`, `TRUST_PROXY=1`.
+- One-time setup: private `ADMIN_PHONE`, `ADMIN_PASSWORD`, `ADMIN_NAME`; optional
+  `INITIAL_INVENTORY_CSV_BASE64` for the owner's actual CSV. Clear these four
+  setup values after the successful authenticated import and verification.
+- The preparation script runs additive schema migration, checks remote rollback,
+  foreign keys and concurrent stock reservation, and creates the first admin.
+  It imports the initial CSV through the same authenticated preview/commit API,
+  verifies prices, stock and preserved source records, then logs out its session.
+  Existing import checksums prevent a redeployment resetting current stock.
+- Production requests require the migrated permanent database. An ephemeral
+  SQLite fallback is rejected on Vercel. Shared rate counters are in the database.
+- The Vercel entry point is `app.mjs`; it uses the compiled Express app without opening an
+  HTTP listener or starting background workers. The Android app polls orders;
+  notifications remain deferred. Standalone Docker uses `src/index.ts` and can
+  retain its authenticated WebSocket endpoint.
+- App connection uses an HTTPS origin with no `/api` suffix. The requested custom
+  domain is `api.aoneonlinemart.shop`; DNS setup follows successful BE deployment.
 
 ## Render
 
@@ -22,7 +50,7 @@ persistent disk requires paid compute; confirm the current bill in your account.
    retains existing credentials on restarts. The catalog starts empty. Import
    the mart's actual products in Admin → Inventory after logging in.
 4. Check `https://YOUR-SERVICE.onrender.com/health`. It must return
-   `{"ok":true,"service":"aone-mart-api","version":"1.0.0"}`.
+   `{"ok":true,"service":"aone-mart-api","version":"1.1.0"}`.
 5. Enter `https://YOUR-SERVICE.onrender.com` on the Android connection screen.
    Sign up a customer and check an order through placed → accepted → packed →
    picked. Reject/cancel another order and check that its reserved stock returns.

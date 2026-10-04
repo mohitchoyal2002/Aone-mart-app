@@ -62,29 +62,29 @@ export const customerProduct = (p: Record<string, any>) => {
   return publicData;
 };
 export const catalogRouter = Router();
-catalogRouter.get("/store", (_req, res) =>
+catalogRouter.get("/store", async (_req, res) =>
   res.json({
     store: {
-      ...storeSettings(),
+      ...(await storeSettings()),
       demoCatalog:
-        row("SELECT value FROM settings WHERE key=?", "demoCatalog")?.value ===
-        "true",
+        (await row("SELECT value FROM settings WHERE key=?", "demoCatalog"))
+          ?.value === "true",
     },
   }),
 );
 catalogRouter.use(requireAuth);
-catalogRouter.get("/categories", (_req, res) =>
+catalogRouter.get("/categories", async (_req, res) =>
   res.json({
-    categories: rows("SELECT * FROM categories ORDER BY sort_order,name"),
+    categories: await rows("SELECT * FROM categories ORDER BY sort_order,name"),
   }),
 );
-catalogRouter.get("/products", (req, res) => {
+catalogRouter.get("/products", async (req, res) => {
   const { limit, offset } = page(req.query),
     q = escapeLike(String(req.query.q || "").slice(0, 160)),
     cat = String(req.query.categoryId || "");
   const filter = ` WHERE p.deleted_at IS NULL AND (p.name LIKE ? ESCAPE '\\' OR p.sku LIKE ? ESCAPE '\\') ${cat ? "AND p.category_id=?" : ""}`;
   const args = cat ? [`%${q}%`, `%${q}%`, cat] : [`%${q}%`, `%${q}%`];
-  const items = rows(
+  const items = await rows(
     productSelect + filter + " ORDER BY p.name LIMIT ? OFFSET ?",
     ...args,
     limit,
@@ -92,15 +92,17 @@ catalogRouter.get("/products", (req, res) => {
   );
   res.json({
     products: items.map(customerProduct),
-    total: row("SELECT count(*) count FROM products p" + filter, ...args)!
-      .count,
+    total: (await row(
+      "SELECT count(*) count FROM products p" + filter,
+      ...args,
+    ))!.count,
     limit,
     offset,
   });
 });
 export const inventoryRouter = Router();
 inventoryRouter.use(requireAuth, adminOnly);
-inventoryRouter.get("/", (req, res) => {
+inventoryRouter.get("/", async (req, res) => {
   const { limit, offset } = page(req.query),
     q = escapeLike(String(req.query.q || "").slice(0, 160));
   const low =
@@ -109,31 +111,33 @@ inventoryRouter.get("/", (req, res) => {
       : "";
   const filter = ` WHERE p.deleted_at IS NULL AND (p.name LIKE ? ESCAPE '\\' OR p.sku LIKE ? ESCAPE '\\') ${low}`;
   res.json({
-    products: rows(
-      productSelect + filter + " ORDER BY p.name LIMIT ? OFFSET ?",
-      `%${q}%`,
-      `%${q}%`,
-      limit,
-      offset,
+    products: (
+      await rows(
+        productSelect + filter + " ORDER BY p.name LIMIT ? OFFSET ?",
+        `%${q}%`,
+        `%${q}%`,
+        limit,
+        offset,
+      )
     ).map(serializeProduct),
-    total: row(
+    total: (await row(
       "SELECT count(*) count FROM products p" + filter,
       `%${q}%`,
       `%${q}%`,
-    )!.count,
+    ))!.count,
     limit,
     offset,
   });
 });
-inventoryRouter.post("/", (req, res) => {
+inventoryRouter.post("/", async (req, res) => {
   const p = productSchema.parse(req.body),
     pid = id();
-  transaction(() => {
-    if (!row("SELECT id FROM categories WHERE id=?", p.categoryId))
+  await transaction(async () => {
+    if (!(await row("SELECT id FROM categories WHERE id=?", p.categoryId)))
       fail(400, "Choose an existing category.");
-    if (row("SELECT id FROM products WHERE sku=?", p.sku))
+    if (await row("SELECT id FROM products WHERE sku=?", p.sku))
       fail(409, "This SKU already exists, including disabled products.");
-    run(
+    await run(
       "INSERT INTO products(id,sku,name,category_id,price,mrp,cost,stock,low_stock_threshold,unit,image_url,artwork,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
       pid,
       p.sku,
@@ -150,7 +154,7 @@ inventoryRouter.post("/", (req, res) => {
       now(),
       now(),
     );
-    run(
+    await run(
       "INSERT INTO inventory_movements VALUES(?,?,?,?,?,?,?)",
       id(),
       pid,
@@ -160,19 +164,19 @@ inventoryRouter.post("/", (req, res) => {
       req.user.id,
       now(),
     );
-    audit(req.user.id, "product.create", pid);
+    await audit(req.user.id, "product.create", pid);
   });
-  res
-    .status(201)
-    .json({
-      product: serializeProduct(row(productSelect + " WHERE p.id=?", pid)!),
-    });
+  res.status(201).json({
+    product: serializeProduct(
+      (await row(productSelect + " WHERE p.id=?", pid))!,
+    ),
+  });
 });
-inventoryRouter.put("/:id", (req, res) => {
+inventoryRouter.put("/:id", async (req, res) => {
   const p = productSchema.parse(req.body),
     pid = String(req.params.id);
-  transaction(() => {
-    const old = row(
+  await transaction(async () => {
+    const old = await row(
       "SELECT * FROM products WHERE id=? AND deleted_at IS NULL",
       pid,
     );
@@ -183,11 +187,11 @@ inventoryRouter.put("/:id", (req, res) => {
         `${old!.reserved} units are reserved for active orders. Stock cannot go below this.`,
         "RESERVED_STOCK",
       );
-    if (!row("SELECT id FROM categories WHERE id=?", p.categoryId))
+    if (!(await row("SELECT id FROM categories WHERE id=?", p.categoryId)))
       fail(400, "Category not found.");
-    if (row("SELECT id FROM products WHERE sku=? AND id<>?", p.sku, pid))
+    if (await row("SELECT id FROM products WHERE sku=? AND id<>?", p.sku, pid))
       fail(409, "This SKU already exists.");
-    run(
+    await run(
       "UPDATE products SET sku=?,name=?,category_id=?,price=?,mrp=?,cost=?,stock=?,low_stock_threshold=?,unit=?,image_url=?,artwork=?,updated_at=? WHERE id=?",
       p.sku,
       p.name,
@@ -204,7 +208,7 @@ inventoryRouter.put("/:id", (req, res) => {
       pid,
     );
     if (old!.stock !== p.stock)
-      run(
+      await run(
         "INSERT INTO inventory_movements VALUES(?,?,?,?,?,?,?)",
         id(),
         pid,
@@ -214,16 +218,18 @@ inventoryRouter.put("/:id", (req, res) => {
         req.user.id,
         now(),
       );
-    audit(req.user.id, "product.update", pid);
+    await audit(req.user.id, "product.update", pid);
   });
   res.json({
-    product: serializeProduct(row(productSelect + " WHERE p.id=?", pid)!),
+    product: serializeProduct(
+      (await row(productSelect + " WHERE p.id=?", pid))!,
+    ),
   });
 });
-inventoryRouter.delete("/:id", (req, res) => {
+inventoryRouter.delete("/:id", async (req, res) => {
   const pid = String(req.params.id);
-  transaction(() => {
-    const p = row(
+  await transaction(async () => {
+    const p = await row(
       "SELECT * FROM products WHERE id=? AND deleted_at IS NULL",
       pid,
     );
@@ -233,34 +239,36 @@ inventoryRouter.delete("/:id", (req, res) => {
         409,
         "Complete or reject reserved orders before removing this product.",
       );
-    run(
+    await run(
       "UPDATE products SET deleted_at=?,updated_at=? WHERE id=?",
       now(),
       now(),
       pid,
     );
-    audit(req.user.id, "product.soft_delete", pid);
+    await audit(req.user.id, "product.soft_delete", pid);
   });
   res.json({ ok: true });
 });
-inventoryRouter.post("/categories", (req, res) => {
+inventoryRouter.post("/categories", async (req, res) => {
   const d = z
     .object({
       name: z.string().trim().min(2).max(60),
       icon: z.string().max(40).default("basket"),
     })
     .parse(req.body);
-  if (row("SELECT id FROM categories WHERE name=? COLLATE NOCASE", d.name))
+  if (
+    await row("SELECT id FROM categories WHERE name=? COLLATE NOCASE", d.name)
+  )
     fail(409, "Category already exists.");
   const cid = id();
-  run(
+  await run(
     "INSERT INTO categories(id,name,icon,sort_order) VALUES(?,?,?,?)",
     cid,
     d.name,
     d.icon,
-    rows("SELECT id FROM categories").length,
+    (await rows("SELECT id FROM categories")).length,
   );
   res
     .status(201)
-    .json({ category: row("SELECT * FROM categories WHERE id=?", cid) });
+    .json({ category: await row("SELECT * FROM categories WHERE id=?", cid) });
 });
