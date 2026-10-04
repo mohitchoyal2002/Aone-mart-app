@@ -9,6 +9,16 @@
 | Mobile TypeScript | Passed |
 | Native mobile ESLint | Passed, no errors or warnings |
 | Backend build | `tsc` compiled all API modules successfully |
+| Android APK compilation | GitHub Actions run `37177391580` succeeded; 629 native build tasks executed |
+| Delivered APK signing | Private RSA-4096 Aone Mart key; APK v2/v3 signature verified; release is not debuggable |
+| APK compatibility | Package `com.aonemart.app`, version 1.0.0/code 1, min API 24, target API 36, arm64 and x86_64 |
+| Native page alignment | ZIP 16 KB alignment and all 24 arm64 ELF library load segments checked |
+| APK integrity | Artifact hashes, APK signature and bundled-secret scan passed; final SHA-256 `57bc53d84101d65d73c401b316b38b39d76c30eeee2e082d99248b3347a471cb` |
+| Native Android customer flow | Hardware-accelerated API 29 emulator: APK installation, startup, server connection, signup, native catalog, cart, order placement, realtime packed state and pickup confirmation passed |
+| Native Android admin flow | Separate admin login and tablet dashboard, inventory, customers, sales, coupons, AI and settings navigation passed; screenshots captured |
+| Native smoke test | GitHub Actions run `37177953445` passed 14 checks against an isolated backend and sample catalog |
+| Primary button rendering | Native minimum touch height check passed; connection/login/inventory screenshot review shows the intended filled buttons |
+| Distributed APK payload | Every application entry matches the tested CI APK; private release signing applied afterwards |
 | Production startup | Fresh database admin bootstrap, health check, admin login, graceful shutdown and repeated bootstrap passed |
 | VPS configuration | Docker Compose YAML checked; persistent data, private API port and deferred notifications configured |
 | Android JS export | Expo/Metro generated a **6.3 MB Hermes Android bundle** from `src/app`; assets resolved |
@@ -51,8 +61,7 @@ The JavaScript export and prebuild are compilation preparation, not an APK insta
 
 | Item | Reason / required next action |
 | --- | --- |
-| Installable APK or AAB | Android SDK 36, NDK and Gradle installed. Local native compilation reached module configuration before Maven network policy blocked further access. GitHub write access is verified and a cloud APK workflow is supplied. APK completion requires a successful workflow run. |
-| Phone/tablet visual and interaction QA | Emulator tools and an Android 36 system image are installed; an APK has not yet been launched. Test small-screen layouts, keyboards, modals, cart and admin tables on devices. |
+| Physical-device QA | Native phone/tablet smoke checks passed on the hardware-accelerated emulator. Actual devices and the mart's real catalog/invoices remain to be checked. |
 | Background notification/tone delivery | Expo project ID, Android Firebase configuration and EAS FCM credentials were not supplied. Configure, rebuild and test with two physical devices. |
 | Native notification tap from killed app | Requires the above compiled-device test. Routing code is implemented but has not been exercised on a device. |
 | PDF/image invoice extraction against real mart invoices | Extraction and mandatory preview/review code are present; only deterministic CSV imports were integration-tested. Test actual scans, correct missing SKUs/dates using CSV. |
