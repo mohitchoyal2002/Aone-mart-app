@@ -262,7 +262,7 @@ try:
     wait("Home", desc=True)
     screenshot("03-customer-home")
     passed("Customer signup and native product grid")
-    wait("Pause basket animation", desc=True)
+    # On narrow phones the animation control is below the first screenful.
     click("Pause basket animation", desc=True)
     wait("Play basket animation", desc=True)
     click("Play basket animation", desc=True)
@@ -280,7 +280,7 @@ try:
     adb("shell", "am", "force-stop", PACKAGE)
     adb("shell", "am", "start", "-n", PACKAGE + "/.MainActivity")
     screenshot("03c-cold-start")
-    wait("Pause basket animation", desc=True, seconds=60)
+    wait("Home", desc=True, seconds=60)
     screenshot("03d-restored-home")
     passed("Cold startup restores the customer session without a recovery error")
     click("Search rice, milk, essentials...", desc=True)
