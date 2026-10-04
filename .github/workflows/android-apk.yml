@@ -46,7 +46,24 @@ jobs:
         working-directory: apps/mobile
         run: npx expo prebuild --platform android --clean --no-install
       - name: Install Android build tools
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;27.1.12297006" "cmake;3.22.1"
+        run: |
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$RUNNER_TEMP/android-sdk}}"
+          sdk_manager="$sdk_root/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$sdk_manager" ]; then
+            curl --fail --location --retry 3 https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip -o "$RUNNER_TEMP/android-commandline.zip"
+            unzip -q "$RUNNER_TEMP/android-commandline.zip" -d "$RUNNER_TEMP/android-commandline"
+            mkdir -p "$sdk_root/cmdline-tools"
+            mv "$RUNNER_TEMP/android-commandline/cmdline-tools" "$sdk_root/cmdline-tools/latest"
+          fi
+          export ANDROID_HOME="$sdk_root"
+          export ANDROID_SDK_ROOT="$sdk_root"
+          echo "ANDROID_HOME=$sdk_root" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$sdk_root" >> "$GITHUB_ENV"
+          python3 - "$sdk_manager" <<'PY'
+          import subprocess, sys
+          subprocess.run([sys.argv[1], '--licenses'], input='y\n' * 100, text=True, check=True, stdout=subprocess.DEVNULL)
+          PY
+          "$sdk_manager" "platforms;android-36" "build-tools;36.0.0" "ndk;27.1.12297006" "cmake;3.22.1"
       - name: Compile release APK
         working-directory: apps/mobile/android
         run: |
