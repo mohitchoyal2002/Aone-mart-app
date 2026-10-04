@@ -1,5 +1,6 @@
 """Exercise the compiled native APK against an isolated API and sample catalog."""
 import json
+import datetime
 import os
 import re
 import secrets
@@ -216,6 +217,9 @@ try:
     adb("shell", "wm", "size", "720x1280")
     adb("shell", "wm", "density", "280")
     adb("shell", "settings", "put", "secure", "show_ime_with_hard_keyboard", "1")
+    # Emulator-runner disables animator duration globally, which Android exposes
+    # as Reduce Motion. Exercise the real 3D/GIF path with motion enabled.
+    adb("shell", "settings", "put", "global", "animator_duration_scale", "1")
     adb("shell", "input", "keyevent", "KEYCODE_WAKEUP")
     adb("shell", "wm", "dismiss-keyguard")
     adb("shell", "am", "start", "-n", PACKAGE + "/.MainActivity")
@@ -253,6 +257,13 @@ try:
     click("Play basket animation", desc=True)
     screenshot("03a-home-motion")
     passed("Home 3D animation pause and resume controls")
+    adb("shell", "settings", "put", "global", "animator_duration_scale", "0")
+    time.sleep(1)
+    assert find("Pause basket animation", desc=True) is None, "Reduce Motion did not disable automatic animation"
+    screenshot("03b-home-reduced-motion")
+    adb("shell", "settings", "put", "global", "animator_duration_scale", "1")
+    wait("Pause basket animation", desc=True)
+    passed("Home respects Android Reduce Motion")
     click("Search rice, milk, essentials...", desc=True)
     assert_input_above_keyboard("Search rice, milk, essentials...", "keyboard-05-home-search")
     assert find("Home", desc=True) is None, "Customer navigation still consumes typing space"
@@ -316,6 +327,37 @@ try:
     click("By gross sales", desc=True)
     screenshot("17-admin-analytics-products-phone")
     passed("Admin top-product graph switches to gross sales")
+    admin_tab("Sales & Invoices")
+    wait("Sales & invoices", sensitive=True)
+    before_stock = api("/api/admin/reports/inventory", token=token)["stats"]["units"]
+    today = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=5, minutes=30)).date().isoformat()
+    csv_path = OUT / "aone-qa-sales.csv"
+    csv_path.write_text(f"Bill No.,Customer,Received Amount,Credit Amount,Cheque Amount,Card Amount,Net Amount,RefDate\nQA-NATIVE-SUMMARY,Counter shopper,100,0,0,0,100,{today}\n")
+    adb("push", str(csv_path), "/sdcard/Download/aone-qa-sales.csv")
+    click("Import invoices", desc=True)
+    wait("Show roots", desc=True)
+    click("Show roots", desc=True)
+    click("Downloads")
+    click("aone-qa-sales.csv")
+    wait("Review your import")
+    assert find("Deduct stock for these sales?") is None, "Bill summaries must not offer invented stock deductions"
+    screenshot("18-native-csv-preview")
+    for _ in range(6):
+        if find("I reviewed this file") is not None:
+            break
+        scroll()
+    tree = dump()
+    review_switch = next(n for n in tree.iter("node") if n.get("class", "").endswith("Switch") and n.get("enabled") == "true")
+    left, top, right, bottom = map(int, re.findall(r"\d+", review_switch.get("bounds")))
+    adb("shell", "input", "tap", str((left + right) // 2), str((top + bottom) // 2))
+    click("Confirm import", desc=True)
+    wait("Import complete")
+    screenshot("19-native-csv-success")
+    click("Okay", desc=True)
+    assert api("/api/admin/reports/inventory", token=token)["stats"]["units"] == before_stock
+    report = api("/api/admin/reports/sales", token=token)
+    assert report["stats"]["summaryInvoices"] == 1 and report["stats"]["summaryRevenue"] == 10000
+    passed("Native CSV picker previews and imports bill summaries without changing stock")
     admin_tab("Manage Inventory")
     wait("Manage inventory", sensitive=True)
     click("Add product")
