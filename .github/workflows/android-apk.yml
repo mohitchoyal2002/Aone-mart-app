@@ -1,0 +1,109 @@
+name: Android APK
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/mobile/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/android-apk.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      APP_VARIANT: preview
+      ENABLE_NOTIFICATIONS: "false"
+      CI: "1"
+      EXPO_NO_TELEMETRY: "1"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Verify backend and mobile source
+        run: |
+          npm test
+          npm run typecheck
+          npm run lint -w @aone/mobile
+          npm run build:api
+      - name: Prepare Android native project
+        working-directory: apps/mobile
+        run: npx expo prebuild --platform android --clean --no-install
+      - name: Install Android build tools
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;27.1.12297006" "cmake;3.22.1"
+      - name: Compile release APK
+        working-directory: apps/mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --max-workers=2 -PreactNativeArchitectures=arm64-v8a,x86_64
+      - name: Verify and package APK
+        run: |
+          mkdir -p apk-output
+          cp apps/mobile/android/app/build/outputs/apk/release/app-release.apk apk-output/Aone-Mart-build.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose apk-output/Aone-Mart-build.apk
+          sha256sum apk-output/Aone-Mart-build.apk > apk-output/SHA256.txt
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const bytes = readFileSync('apk-output/Aone-Mart-build.apk');
+          const size = 24 * 1024 * 1024;
+          for (let start = 0, part = 0; start < bytes.length; start += size, part++) {
+            writeFileSync(`apk-output/part-${part}.bin`, bytes.subarray(start, start + size));
+          }
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Aone-Mart-APK
+          path: |
+            apk-output/Aone-Mart-build.apk
+            apk-output/SHA256.txt
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: APK-transfer-part-0
+          path: apk-output/part-0.bin
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: hashFiles('apk-output/part-1.bin') != ''
+        with:
+          name: APK-transfer-part-1
+          path: apk-output/part-1.bin
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: hashFiles('apk-output/part-2.bin') != ''
+        with:
+          name: APK-transfer-part-2
+          path: apk-output/part-2.bin
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: hashFiles('apk-output/part-3.bin') != ''
+        with:
+          name: APK-transfer-part-3
+          path: apk-output/part-3.bin
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: Android-build-diagnostics
+          path: |
+            apps/mobile/android/build/reports
+            apps/mobile/android/app/build/reports
+          if-no-files-found: ignore
+          retention-days: 7

@@ -1,0 +1,19 @@
+node_modules/
+.expo/
+dist/
+dist-android/
+coverage/
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+data/
+*.jks
+*.keystore
+android/
+ios/
+*.apk
+*.aab
+# Firebase Android client config is intentionally included when configured.

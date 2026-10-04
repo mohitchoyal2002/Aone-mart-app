@@ -1,0 +1,22 @@
+{
+  "name": "aone-mart",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "setup": "npm run setup -w @aone/api",
+    "api": "npm run dev -w @aone/api",
+    "mobile": "npm run start -w @aone/mobile",
+    "android": "npm run android -w @aone/mobile",
+    "seed": "npm run seed -w @aone/api",
+    "test": "npm run test -w @aone/api",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "build:api": "npm run build -w @aone/api",
+    "build:android": "npm run build:apk -w @aone/mobile"
+  }
+}

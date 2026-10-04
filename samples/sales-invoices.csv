@@ -1,0 +1,4 @@
+invoice_number,invoice_date,customer_phone,sku,quantity,unit_price,discount
+SAMPLE-INV-001,2026-10-03,,RICE-1KG,2,119,10
+SAMPLE-INV-001,2026-10-03,,MILK-500,1,28,0
+SAMPLE-INV-002,2026-10-03,,SOAP-100,3,39,0

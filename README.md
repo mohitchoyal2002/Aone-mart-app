@@ -19,7 +19,7 @@ One React Native Android app has separate Customer and Admin workspaces. Admin u
 | AI Summary | Read-only Gemini chat about current inventory, selected sales range, customers and coupons; Hindi/English questions |
 | Notifications | Authenticated realtime updates, persistent notification inbox/outbox and bundled custom new-order tone; remote push integration |
 
-**Build status:** the backend and native app source are implemented and checked. The Android APK build workflow is ready. Local native compilation was blocked by Maven network policy, and GitHub write access returned HTTP 403, so the workflow has not run and an APK has not yet been produced. Notifications are deferred: both the app and server default to `ENABLE_NOTIFICATIONS=false`. VPS deployment configuration is supplied; a live deployment needs the server IP/domain and SSH access. Install the completed APK only after its build succeeds.
+**Build status:** the backend and native app source are implemented and checked. GitHub write access is verified, and the Android APK workflow builds the app on each mobile-source push to `main`. An installable APK is available only after that workflow succeeds. Notifications are deferred: both the app and server default to `ENABLE_NOTIFICATIONS=false`. VPS deployment configuration is supplied; a live deployment needs the server IP/domain and SSH access.
 
 The supplied Google share link could not be resolved in this environment. The mart name is used, while its address, opening hours, logo and actual catalog have not been verified. Enter verified store details in Admin → Store Settings. Sample products are explicitly labelled when the optional seed is used.
 
@@ -232,6 +232,6 @@ npm run build:api
 npm run bundle:android -w @aone/mobile
 ```
 
-`docs/verification.md` records what was tested and what still needs a device/build service. Generated bundles and native build folders are excluded from this source ZIP. No production server, Firebase project or EAS account has been created by this delivery. The supplied GitHub repository is `mohitchoyal2002/Aone-mart-app`; the connected integration returned HTTP 403 on writes, so no source has been pushed yet.
+`docs/verification.md` records what was tested and what still needs a device/build service. Generated bundles and native build folders are excluded from version control. A production server is pending VPS access. The source repository is [mohitchoyal2002/Aone-mart-app](https://github.com/mohitchoyal2002/Aone-mart-app). The Android APK workflow runs without an EAS account; remote notifications remain deferred.
 
 Source folders: `apps/mobile/src/app` contains Expo Router routes; native screens/components are in `apps/mobile/src`; API/auth/database/import/report/notification services are in `apps/api/src`; integration tests are in `apps/api/test`; CSV examples are in `samples`.

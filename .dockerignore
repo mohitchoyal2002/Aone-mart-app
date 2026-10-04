@@ -1,0 +1,13 @@
+**/node_modules
+**/.env
+**/.env.local
+**/data
+**/.expo
+**/dist*
+**/android
+**/ios
+**/*.sqlite*
+**/google-services.json
+**/*.keystore
+**/*.jks
+**/.git

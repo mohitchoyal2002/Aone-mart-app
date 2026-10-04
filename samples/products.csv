@@ -1,0 +1,4 @@
+sku,name,category,price,mrp,cost,stock,low_stock_threshold,unit,image_url,artwork
+RICE-1KG,Basmati Rice,Groceries,119,140,91,40,5,1 kg,,rice
+MILK-500,Fresh Toned Milk,Dairy & Bread,28,30,24,40,5,500 ml,,milk
+SOAP-100,Gentle Bath Soap,Daily Needs,39,49,29,25,5,100 g,,soap
