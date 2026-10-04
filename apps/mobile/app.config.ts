@@ -4,7 +4,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "Aone Mart",
   slug: "aone-mart",
-  version: "1.0.1",
+  version: "1.0.2",
   scheme: "aonemart",
   platforms: ["android"],
   orientation: "default",
@@ -12,7 +12,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   icon: "./assets/aone-icon.png",
   android: {
     package: "com.aonemart.app",
-    versionCode: 2,
+    versionCode: 3,
     softwareKeyboardLayoutMode: "resize",
     permissions: ["POST_NOTIFICATIONS", "VIBRATE"],
     ...(existsSync("./google-services.json")
@@ -20,12 +20,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       : {}),
     adaptiveIcon: {
       foregroundImage: "./assets/aone-adaptive.png",
-      backgroundColor: "#1E5C43",
+      backgroundColor: "#175542",
     },
   },
   plugins: [
     "expo-router",
     "expo-font",
+    "expo-image",
+    ["expo-image-picker", { cameraPermission: false, microphonePermission: false }],
     "expo-system-ui",
     ["expo-navigation-bar", { enforceContrast: false, style: "dark" }],
     [
@@ -33,7 +35,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         image: "./assets/aone-splash.png",
         imageWidth: 200,
-        backgroundColor: "#F7F8F2",
+        backgroundColor: "#FFFAF1",
       },
     ],
     [

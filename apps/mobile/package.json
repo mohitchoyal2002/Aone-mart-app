@@ -1,6 +1,6 @@
 {
   "name": "@aone/mobile",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "main": "expo-router/entry",
   "dependencies": {
     "@expo-google-fonts/dm-sans": "^0.4.2",
@@ -8,6 +8,8 @@
     "@react-navigation/bottom-tabs": "^7.20.0",
     "@react-navigation/native": "^7.5.0",
     "@react-navigation/native-stack": "^7.20.0",
+    "@types/three": "0.166.0",
+    "animejs": "4.5.0",
     "expo": "~57.0.26",
     "expo-build-properties": "~57.0.22",
     "expo-constants": "~57.0.20",
@@ -15,7 +17,11 @@
     "expo-document-picker": "~57.0.3",
     "expo-file-system": "~57.0.7",
     "expo-font": "~57.0.4",
+    "expo-gl": "~57.0.2",
     "expo-haptics": "~57.0.3",
+    "expo-image": "~57.0.5",
+    "expo-image-manipulator": "~57.0.20",
+    "expo-image-picker": "~57.0.20",
     "expo-linear-gradient": "~57.0.2",
     "expo-linking": "~57.0.11",
     "expo-navigation-bar": "~57.0.3",
@@ -26,6 +32,7 @@
     "expo-splash-screen": "~57.0.9",
     "expo-status-bar": "~57.0.1",
     "expo-system-ui": "~57.0.4",
+    "expo-three": "^8.0.0",
     "lucide-react-native": "^1.51.0",
     "nativewind": "^4.2.7",
     "react": "19.2.3",
@@ -36,7 +43,8 @@
     "react-native-screens": "~4.26.0",
     "react-native-svg": "15.15.4",
     "react-native-worklets": "0.10.1",
-    "tailwindcss": "^3.4.17"
+    "tailwindcss": "^3.4.17",
+    "three": "0.166.1"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",

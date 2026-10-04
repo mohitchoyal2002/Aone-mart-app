@@ -1,6 +1,6 @@
 {
   "name": "@aone/api",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -25,6 +25,7 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
+    "sharp": "^0.35.5",
     "ws": "^8.18.3",
     "zod": "^4.1.12"
   },

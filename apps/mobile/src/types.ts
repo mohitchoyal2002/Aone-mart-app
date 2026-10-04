@@ -110,6 +110,13 @@ export interface Store {
   pointsPer100Rupees: number;
   acceptingOrders: boolean;
   demoCatalog?: boolean;
+  banners?: Banner[];
+}
+export interface Banner {
+  id: string;
+  title: string;
+  altText: string;
+  imagePath: string;
 }
 export interface Quote {
   subtotal: number;
@@ -134,6 +141,8 @@ export interface SalesReport {
     discounts: number;
     cost: number;
     profit: number;
+    summaryInvoices?: number;
+    summaryRevenue?: number;
     averageOrder: number;
     units: number;
   };
@@ -144,6 +153,7 @@ export interface SalesReport {
     units: number;
     grossRevenue: number;
   }[];
+  topProductsByRevenue?: SalesReport["topProducts"];
   categories: { name: string; grossRevenue: number; units: number }[];
 }
 export interface InventoryReport {
@@ -168,6 +178,44 @@ export interface Dashboard {
   inventory: InventoryReport;
   customers: { total: number; rewardPoints: number };
   orders: { status: OrderStatus; count: number }[];
+  analytics?: Analytics;
+}
+export interface Analytics {
+  updatedAt: string;
+  comparison: {
+    previousRange: { from: string; to: string };
+    previous: { revenue: number; invoices: number; averageOrder: number };
+    daily: SalesReport["daily"];
+    changes: {
+      revenue: number | null;
+      invoices: number | null;
+      averageOrder: number | null;
+    };
+  };
+  sources: {
+    source: "app" | "summary" | "itemized";
+    invoices: number;
+    revenue: number;
+  }[];
+  weekdays: {
+    day: string;
+    weekday: number;
+    invoices: number;
+    revenue: number;
+  }[];
+  orderStatuses: { status: OrderStatus; count: number }[];
+  stockHealth: { healthy: number; low: number; outOfStock: number };
+  customers: {
+    newAccounts: number;
+    purchasingAccounts: number;
+    repeatAccounts: number;
+    repeatRate: number;
+  };
+  coverage: {
+    itemizedRevenue: number;
+    summaryRevenue: number;
+    itemizedInvoices: number;
+  };
 }
 export interface ImportPreview {
   id: string;
@@ -182,4 +230,6 @@ export interface ImportPreview {
   canCommit: boolean;
   requiresReview: boolean;
   note: string;
+  format?: "products" | "invoice_items" | "sales_summary";
+  supportsInventoryAdjustment?: boolean;
 }

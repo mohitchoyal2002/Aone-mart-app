@@ -1,4 +1,4 @@
-export const schemaVersion = 3;
+export const schemaVersion = 4;
 export const schemaSQL = `
 CREATE TABLE IF NOT EXISTS users (
  id TEXT PRIMARY KEY, name TEXT NOT NULL, phone TEXT NOT NULL UNIQUE,
@@ -48,6 +48,8 @@ CREATE TABLE IF NOT EXISTS notification_outbox(id TEXT PRIMARY KEY,user_id TEXT 
 CREATE TABLE IF NOT EXISTS push_receipts(id TEXT PRIMARY KEY,token TEXT NOT NULL,check_at TEXT NOT NULL,checked_at TEXT);
 CREATE TABLE IF NOT EXISTS import_batches(id TEXT PRIMARY KEY,type TEXT NOT NULL,filename TEXT NOT NULL,checksum TEXT NOT NULL,payload_json TEXT NOT NULL,errors_json TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'preview',actor_id TEXT NOT NULL REFERENCES users(id),created_at TEXT NOT NULL,committed_at TEXT);
 CREATE TABLE IF NOT EXISTS product_import_sources(product_id TEXT PRIMARY KEY REFERENCES products(id),import_batch_id TEXT NOT NULL REFERENCES import_batches(id),format TEXT NOT NULL,record_json TEXT NOT NULL,updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS invoice_import_sources(invoice_id TEXT PRIMARY KEY REFERENCES invoices(id),import_batch_id TEXT NOT NULL REFERENCES import_batches(id),customer_name TEXT NOT NULL DEFAULT '',received INTEGER NOT NULL DEFAULT 0,credit INTEGER NOT NULL DEFAULT 0,cheque INTEGER NOT NULL DEFAULT 0,card INTEGER NOT NULL DEFAULT 0,record_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS store_banners(id TEXT PRIMARY KEY,title TEXT NOT NULL,alt_text TEXT NOT NULL,image BLOB NOT NULL,mime_type TEXT NOT NULL,sort_order INTEGER NOT NULL,created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS audit_log(id TEXT PRIMARY KEY,actor_id TEXT NOT NULL REFERENCES users(id),action TEXT NOT NULL,entity_id TEXT,detail_json TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id,deleted_at);
@@ -58,5 +60,5 @@ CREATE INDEX IF NOT EXISTS idx_redemptions_coupon ON coupon_redemptions(coupon_i
 CREATE INDEX IF NOT EXISTS idx_outbox_due ON notification_outbox(sent_at,available_at);
 CREATE INDEX IF NOT EXISTS idx_point_ledger_user ON point_ledger(user_id,created_at DESC);
 CREATE TABLE IF NOT EXISTS rate_limit_buckets(key TEXT PRIMARY KEY,hits INTEGER NOT NULL,reset_at INTEGER NOT NULL);
-PRAGMA user_version=3;
+PRAGMA user_version=4;
 `;

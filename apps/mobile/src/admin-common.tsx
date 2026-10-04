@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { View, ScrollView } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { C, T, Input, Chip, Sheet, Button, Card } from "./ui";
 export function rangeDays(days = 30) {
   const to = new Intl.DateTimeFormat("en-CA", {
@@ -99,11 +100,36 @@ export function StatGrid({
 }) {
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-      {items.map((i) => (
+      {items.map((i, index) => (
         <Card
           key={i.title}
-          style={{ flexGrow: 1, flexBasis: "46%", minWidth: 135, padding: 17 }}
+          style={{
+            flexGrow: 1,
+            flexBasis: "46%",
+            minWidth: 135,
+            padding: 17,
+            overflow: "hidden",
+          }}
         >
+          <LinearGradient
+            pointerEvents="none"
+            colors={
+              index % 4 === 0
+                ? ["#FFFFFF", "#EAF3DA"]
+                : index % 4 === 1
+                  ? ["#FFFFFF", "#E8F0FA"]
+                  : index % 4 === 2
+                    ? ["#FFFFFF", "#FFF1D3"]
+                    : ["#FFFFFF", "#F0EBFA"]
+            }
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+            }}
+          />
           <View
             style={{
               flexDirection: "row",

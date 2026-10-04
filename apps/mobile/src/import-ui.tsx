@@ -1,12 +1,13 @@
+import { AppDialog as Alert } from "./dialog-service";
 import React, { useState } from "react";
-import { View, ScrollView, Switch, Alert } from "react-native";
+import { View, ScrollView, Switch } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { Upload, Download } from "lucide-react-native";
 import { api } from "./api";
 import { alertError } from "./state";
-import { C, T, Button, Sheet, Card, Notice } from "./ui";
+import { C, T, Button, Sheet, Card, Notice, money } from "./ui";
 import type { ImportPreview } from "./types";
 const templates = {
   products:
@@ -66,9 +67,13 @@ export function ImportButton({
       });
       if (result.canceled) return;
       const asset = result.assets[0];
-      if ((asset.size || 0) > 5 * 1024 * 1024)
-        throw new Error("Choose a file smaller than 5 MB.");
       setBusy(true);
+      const health = await api.get<{ maxUploadBytes?: number }>("/health");
+      const limit = health.maxUploadBytes || 4 * 1024 * 1024;
+      if ((asset.size || 0) > limit)
+        throw new Error(
+          `Choose a file no larger than ${Math.floor(limit / 1024 / 1024)} MB.`,
+        );
       const form = new FormData();
       form.append("type", type);
       form.append("file", {
@@ -172,7 +177,9 @@ export function ImportButton({
                   >
                     {(type === "products"
                       ? ["SKU", "Product", "Price (₹)", "Stock"]
-                      : ["Invoice", "SKU", "Qty", "Unit price (₹)"]
+                      : preview.format === "sales_summary"
+                        ? ["Bill", "Date", "Customer", "Net sale (₹)"]
+                        : ["Invoice", "SKU", "Qty", "Unit price (₹)"]
                     ).map((h, i) => (
                       <View
                         key={h}
@@ -199,7 +206,14 @@ export function ImportButton({
                     >
                       {(type === "products"
                         ? [r.sku, r.name, r.price, r.stock]
-                        : [r.invoice_number, r.sku, r.quantity, r.unit_price]
+                        : preview.format === "sales_summary"
+                          ? [
+                              r.invoice_number,
+                              r.invoice_date,
+                              r.customer_name,
+                              money(Number(r.total) * 100),
+                            ]
+                          : [r.invoice_number, r.sku, r.quantity, r.unit_price]
                       ).map((v, j) => (
                         <View
                           key={j}
@@ -222,37 +236,39 @@ export function ImportButton({
                 </T>
               )}
             </Card>
-            {type === "invoices" && (
-              <Card>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 15,
-                  }}
-                >
-                  <View style={{ flex: 1 }}>
-                    <T bold size={13}>
-                      Deduct stock for these sales?
-                    </T>
-                    <T
-                      size={11}
-                      color={C.muted}
-                      style={{ lineHeight: 18, marginTop: 5 }}
-                    >
-                      Leave off for historical invoices whose stock was already
-                      updated.
-                    </T>
+            {type === "invoices" &&
+              preview.supportsInventoryAdjustment !== false &&
+              preview.format !== "sales_summary" && (
+                <Card>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 15,
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <T bold size={13}>
+                        Deduct stock for these sales?
+                      </T>
+                      <T
+                        size={11}
+                        color={C.muted}
+                        style={{ lineHeight: 18, marginTop: 5 }}
+                      >
+                        Leave off for historical invoices whose stock was
+                        already updated.
+                      </T>
+                    </View>
+                    <Switch
+                      value={adjust}
+                      onValueChange={setAdjust}
+                      trackColor={{ true: C.forest, false: C.line }}
+                      thumbColor={C.white}
+                    />
                   </View>
-                  <Switch
-                    value={adjust}
-                    onValueChange={setAdjust}
-                    trackColor={{ true: C.forest, false: C.line }}
-                    thumbColor={C.white}
-                  />
-                </View>
-              </Card>
-            )}
+                </Card>
+              )}
             {preview.canCommit && (
               <View
                 style={{ flexDirection: "row", alignItems: "center", gap: 14 }}

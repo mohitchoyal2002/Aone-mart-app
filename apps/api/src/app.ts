@@ -17,6 +17,7 @@ import { devicesRouter } from "./notifications.js";
 import { config } from "./config.js";
 import { AppError } from "./core.js";
 import { row } from "./db.js";
+import { bannersRouter, bannerImagesRouter } from "./banners.js";
 export const app = express();
 app.disable("x-powered-by");
 if (config.trustProxy > 0) app.set("trust proxy", config.trustProxy);
@@ -51,13 +52,14 @@ app.get(["/", "/health"], async (_req, res) => {
   res.json({
     ok: true,
     service: "aone-mart-api",
-    version: "1.1.0",
+    version: "1.2.0",
     database: config.tursoUrl ? "turso" : "sqlite",
     realtime: config.serverless ? "polling" : "websocket",
     maxUploadBytes: (config.serverless ? 4 : 5) * 1024 * 1024,
   });
 });
 app.use("/api/auth", authRouter);
+app.use("/api/catalog/banners", bannerImagesRouter);
 app.use("/api/catalog", catalogRouter);
 app.use("/api/orders", ordersRouter);
 app.use("/api/rewards", rewardsRouter);
@@ -68,6 +70,7 @@ app.use("/api/admin/users", usersRouter);
 app.use("/api/admin/coupons", adminCouponsRouter);
 app.use("/api/admin/reports", reportsRouter);
 app.use("/api/admin/imports", importsRouter);
+app.use("/api/admin/settings/banners", bannersRouter);
 app.use("/api/admin/settings", settingsRouter);
 app.use("/api/admin/ai", aiRouter);
 app.use((_req, res) =>

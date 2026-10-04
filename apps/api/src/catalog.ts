@@ -3,6 +3,7 @@ import { z } from "zod";
 import { rows, row, run, now, transaction, storeSettings } from "./db.js";
 import { requireAuth, adminOnly } from "./auth.js";
 import { id, fail, money, page, audit, escapeLike } from "./core.js";
+import { listBanners } from "./banners.js";
 export const productSchema = z
   .object({
     sku: z.string().trim().min(1).max(60),
@@ -66,6 +67,7 @@ catalogRouter.get("/store", async (_req, res) =>
   res.json({
     store: {
       ...(await storeSettings()),
+      banners: await listBanners(),
       demoCatalog:
         (await row("SELECT value FROM settings WHERE key=?", "demoCatalog"))
           ?.value === "true",

@@ -82,6 +82,27 @@ const invoiceRow = z
     (d) => money(d.discount) <= money(d.unit_price) * d.quantity,
     "Line discount cannot exceed line amount",
   );
+const summaryRow = z.object({
+  source_format: z.literal("pos_sales_summary"),
+  invoice_number: text(1, 80),
+  invoice_date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .refine(
+      (v) =>
+        Number.isFinite(Date.parse(v)) &&
+        new Date(v).toISOString().slice(0, 10) === v,
+      "Enter a valid invoice date",
+    ),
+  customer_phone: z.literal("").default(""),
+  customer_name: z.string().trim().max(160).default(""),
+  total: number.min(0).max(10000000),
+  received: number.min(0).max(10000000).default(0),
+  credit: number.min(0).max(10000000).default(0),
+  cheque: number.min(0).max(10000000).default(0),
+  card: number.min(0).max(10000000).default(0),
+  source_record: z.record(z.string().max(120), z.string().max(10000)),
+});
 export type ImportError = {
   row: number;
   message: string;
@@ -90,7 +111,8 @@ function headerKey(value: string) {
   return value
     .trim()
     .toLowerCase()
-    .replace(/[\s.\-]+/g, "_");
+    .replace(/[\s.\-]+/g, "_")
+    .replace(/^_+|_+$/g, "");
 }
 function normalize(record: Record<string, unknown>) {
   const out: Record<string, unknown> = {};
@@ -99,6 +121,28 @@ function normalize(record: Record<string, unknown>) {
     out[key] = typeof v === "string" ? v.trim() : v;
   }
   return out;
+}
+function salesValue(record: Record<string, unknown>) {
+  const value = normalize(record);
+  if (!("bill_no" in value && "net_amount" in value)) return value;
+  const date = String(value.refdate || value.ref_date || "").trim();
+  const indian = /^(\d{2})[/-](\d{2})[/-](\d{4})$/.exec(date);
+  const amount = (key: string) => String(value[key] ?? "0").replace(/,/g, "");
+  return {
+    source_format: "pos_sales_summary",
+    invoice_number: String(value.bill_no || ""),
+    invoice_date: indian ? `${indian[3]}-${indian[2]}-${indian[1]}` : date,
+    customer_phone: "",
+    customer_name: String(value.customer || ""),
+    total: amount("net_amount"),
+    received: amount("received_amount"),
+    credit: amount("credit_amount"),
+    cheque: amount("cheque_amount"),
+    card: amount("card_amount"),
+    source_record: Object.fromEntries(
+      Object.entries(record).map(([k, v]) => [k, String(v ?? "")]),
+    ),
+  };
 }
 function inventoryValue(record: Record<string, unknown>) {
   const value = normalize(record);
@@ -159,7 +203,7 @@ export async function validateRows(
   const normalized: Record<string, any>[] = [],
     errors: ImportError[] = [];
   const prepared = records.map((record) =>
-    type === "products" ? inventoryValue(record) : normalize(record),
+    type === "products" ? inventoryValue(record) : salesValue(record),
   );
   const products = await productsForImport(
     prepared.map((value) => String(value.sku || "")),
@@ -179,13 +223,18 @@ export async function validateRows(
     }
   }
   const seen = new Set<string>();
-  const required =
-    type === "products"
-      ? ["sku", "name", "category", "price", "mrp", "stock"]
-      : ["invoice_number", "invoice_date", "sku", "quantity", "unit_price"];
-  const schema = type === "products" ? productRow : invoiceRow;
   for (const [index, record] of records.entries()) {
     const value = prepared[index];
+    const summary =
+      type === "invoices" && value.source_format === "pos_sales_summary";
+    const required =
+      type === "products"
+        ? ["sku", "name", "category", "price", "mrp", "stock"]
+        : summary
+          ? ["invoice_number", "invoice_date", "total"]
+          : ["invoice_number", "invoice_date", "sku", "quantity", "unit_price"];
+    const schema =
+      type === "products" ? productRow : summary ? summaryRow : invoiceRow;
     for (const k of required)
       if (value[k] === undefined || value[k] === "")
         errors.push({ row: index + 2, message: `${k} is required` });
@@ -227,7 +276,7 @@ export async function validateRows(
           message: `${data.sku} has ${product.reserved} reserved units; stock cannot be lower`,
         });
     } else {
-      if (!products.has(data.sku))
+      if (!summary && !products.has(data.sku))
         errors.push({
           row: index + 2,
           message: `Unknown SKU ${data.sku}; import inventory first`,
@@ -240,6 +289,11 @@ export async function validateRows(
       const other = normalized.find(
         (x) => x.invoice_number === data.invoice_number,
       );
+      if (other && (summary || other.source_format === "pos_sales_summary"))
+        errors.push({
+          row: index + 2,
+          message: `Duplicate or mixed summary for invoice ${data.invoice_number}`,
+        });
       if (
         other &&
         (other.invoice_date !== data.invoice_date ||
@@ -341,6 +395,14 @@ importsRouter.post("/preview", upload.single("file"), async (req, res) => {
   const generatedSkus = pos
     ? normalized.filter((p) => /^POS-/.test(p.sku)).length
     : 0;
+  const summary =
+    type === "invoices" &&
+    normalized.some((p) => p.source_format === "pos_sales_summary");
+  const hasSummaryHeaders =
+    type === "invoices" &&
+    records!.some(
+      (p) => "bill_no" in normalize(p) && "net_amount" in normalize(p),
+    );
   res.status(201).json({
     preview: {
       id: bid,
@@ -354,9 +416,19 @@ importsRouter.post("/preview", upload.single("file"), async (req, res) => {
       rows: normalized.slice(0, 20),
       canCommit: errors.length === 0,
       requiresReview: ext !== "csv",
+      format:
+        summary || hasSummaryHeaders
+          ? "sales_summary"
+          : type === "products"
+            ? "products"
+            : "invoice_items",
+      supportsInventoryAdjustment:
+        type === "invoices" && !summary && !hasSummaryHeaders,
       note:
         type === "invoices"
-          ? "Historical invoices do not change inventory unless you enable stock adjustment. Review extracted amounts before confirming."
+          ? summary || hasSummaryHeaders
+            ? "Bill-wise sales summary detected. Net Amount is saved as sales revenue; customer names and payment columns are retained. This file has no product lines: stock, rewards, product sales and profit are not calculated from it. Review bill numbers, dates and totals before confirming."
+            : "Historical invoices do not change inventory unless you enable stock adjustment. Review extracted amounts before confirming."
           : pos
             ? `POS inventory detected: SaleRate is the selling price in rupees; Curr.Qty is on-hand stock in Unit1. ${generatedSkus} missing/zero barcodes receive stable product IDs. Original columns are saved. Existing costs, images and stock-alert settings are retained; new items have no purchase cost or image in this file. Set purchase costs before relying on profit reports. Active order reservations are preserved.`
             : "Stock is the total on-hand quantity; active order reservations are preserved.",
@@ -392,6 +464,14 @@ importsRouter.post("/:id/commit", async (req, res) => {
     )
       fail(409, "This file was already imported.");
     const values = JSON.parse(batch!.payload_json) as Record<string, any>[];
+    if (
+      adjustInventory &&
+      values.some((p) => p.source_format === "pos_sales_summary")
+    )
+      fail(
+        422,
+        "Sales summaries have no product quantities. Import without deducting stock.",
+      );
     const fresh = await validateRows(batch!.type, values);
     if (fresh.errors.length)
       throw new AppError(
@@ -403,7 +483,9 @@ importsRouter.post("/:id/commit", async (req, res) => {
     const statements: Statement[] = [];
     const add = (sql: string, ...args: Statement["args"]) =>
       statements.push({ sql, args });
-    const products = await productsForImport(values.map((p) => p.sku));
+    const products = await productsForImport(
+      values.flatMap((p) => (typeof p.sku === "string" ? [p.sku] : [])),
+    );
     if (batch!.type === "products") {
       const categories = new Map(
         (await rows("SELECT id,name FROM categories")).map((c) => [
@@ -510,6 +592,34 @@ importsRouter.post("/:id/commit", async (req, res) => {
       for (const [number, lines] of grouped) {
         const first = lines[0],
           invoiceId = id();
+        if (first.source_format === "pos_sales_summary") {
+          add(
+            "INSERT INTO invoices VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+            invoiceId,
+            number,
+            null,
+            null,
+            null,
+            new Date(first.invoice_date + "T12:00:00+05:30").toISOString(),
+            money(first.total),
+            0,
+            money(first.total),
+            "pos_summary",
+            now(),
+          );
+          add(
+            "INSERT INTO invoice_import_sources(invoice_id,import_batch_id,customer_name,received,credit,cheque,card,record_json) VALUES(?,?,?,?,?,?,?,?)",
+            invoiceId,
+            bid,
+            first.customer_name,
+            money(first.received),
+            money(first.credit),
+            money(first.cheque),
+            money(first.card),
+            JSON.stringify(first.source_record),
+          );
+          continue;
+        }
         const subtotal = lines.reduce(
             (s, l) => s + money(l.unit_price) * l.quantity,
             0,

@@ -12,6 +12,7 @@ function RootNavigator() {
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: C.canvas },
+        animation: "fade_from_bottom",
       }}
     >
       <Stack.Protected guard={!connected || !user}>

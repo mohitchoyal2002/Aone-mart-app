@@ -1,3 +1,4 @@
+import { AppDialog as Alert } from "./dialog-service";
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -6,13 +7,14 @@ import {
   Pressable,
   useWindowDimensions,
   RefreshControl,
-  Alert,
   Switch,
   Linking,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useLocalSearchParams } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
+import { BannerCarousel } from "./banner-carousel";
+import { BrandMark } from "./brand";
 import {
   Bell,
   MapPin,
@@ -28,7 +30,6 @@ import {
   LockKeyhole,
   ChevronRight,
   Store as StoreIcon,
-  Leaf,
 } from "lucide-react-native";
 import { api } from "./api";
 import { useAuth, useCart, useLoad, usePoll, alertError } from "./state";
@@ -78,13 +79,18 @@ export function Stepper({
         alignItems: "center",
         backgroundColor: C.forest,
         borderRadius: 11,
-        height: compact ? 31 : 36,
+        height: 48,
       }}
     >
       <Pressable
         accessibilityLabel="Remove one"
         onPress={() => onChange(quantity - 1)}
-        style={{ padding: compact ? 7 : 9 }}
+        style={{
+          minWidth: 44,
+          alignItems: "center",
+          paddingHorizontal: compact ? 10 : 12,
+          paddingVertical: 15,
+        }}
       >
         <Minus size={14} color={C.white} />
       </Pressable>
@@ -94,7 +100,12 @@ export function Stepper({
       <Pressable
         accessibilityLabel="Add one"
         onPress={() => onChange(quantity + 1)}
-        style={{ padding: compact ? 7 : 9 }}
+        style={{
+          minWidth: 44,
+          alignItems: "center",
+          paddingHorizontal: compact ? 10 : 12,
+          paddingVertical: 15,
+        }}
       >
         <Plus size={14} color={C.white} />
       </Pressable>
@@ -170,7 +181,8 @@ export function HomeScreen() {
     [debounced, setDebounced] = useState(""),
     [category, setCategory] = useState(""),
     [offset, setOffset] = useState(0),
-    [notifications, setNotifications] = useState(false);
+    [notifications, setNotifications] = useState(false),
+    [heroVisible, setHeroVisible] = useState(true);
   useEffect(() => {
     const t = setTimeout(() => {
       setDebounced(search);
@@ -259,75 +271,33 @@ export function HomeScreen() {
         <Notice text="The mart is currently not accepting new orders. You can still browse." />
       )}
       {!debounced && !category && (
-        <LinearGradient
-          colors={["#1E5C43", "#386C48"]}
-          style={{
-            borderRadius: 24,
-            padding: 24,
-            minHeight: 179,
-            overflow: "hidden",
-          }}
-        >
-          <View style={{ width: "64%", gap: 8 }}>
-            <View
-              style={{ flexDirection: "row", alignItems: "center", gap: 5 }}
-            >
-              <Leaf size={12} color={C.mint} />
-              <T size={9} bold color={C.mint} style={{ letterSpacing: 1.7 }}>
-                FRESH PICKS. LOCAL LOVE.
-              </T>
-            </View>
-            <T size={25} bold color={C.white} style={{ lineHeight: 29 }}>
-              Your daily basket,{String.fromCharCode(10)}made better.
-            </T>
-            <T size={11} color="#D5E6D9" style={{ lineHeight: 18 }}>
-              Shop now. Pick up when it’s packed.
-            </T>
-            <Pressable
-              onPress={() => {
-                const c = meta.data?.categories.find(
-                  (x) => x.name === "Groceries",
-                );
-                if (c) {
-                  setCategory(c.id);
-                  setOffset(0);
-                }
-              }}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 7,
-                marginTop: 3,
-              }}
-            >
-              <T size={12} bold color={C.mint}>
-                Explore groceries
-              </T>
-              <ArrowRight size={15} color={C.mint} />
-            </Pressable>
-          </View>
-          <View
-            style={{
-              position: "absolute",
-              right: -10,
-              bottom: 3,
-              transform: [{ rotate: "12deg" }],
-            }}
-          >
-            <ProductArt artwork="rice" width={175} height={160} />
-          </View>
-          <View
-            style={{
-              position: "absolute",
-              right: 59,
-              bottom: -34,
-              transform: [{ rotate: "-14deg" }],
-            }}
-          >
-            <ProductArt artwork="fruit" width={119} height={108} />
-          </View>
-        </LinearGradient>
+        <BannerCarousel
+          banners={meta.data?.store.banners}
+          active={heroVisible}
+        />
       )}
+      <LinearGradient
+        colors={["#FFF1CF", "#EBF4E4", "#EAEFFB"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{
+          borderRadius: 18,
+          padding: 16,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
+        <BrandMark size={42} />
+        <View style={{ flex: 1 }}>
+          <T bold size={15}>
+            Shop nearby. Pick up easily.
+          </T>
+          <T size={13} color={C.muted} style={{ lineHeight: 20, marginTop: 4 }}>
+            Reserve your basket here. Pay at the mart.
+          </T>
+        </View>
+      </LinearGradient>
       <View>
         <View
           style={{
@@ -396,6 +366,13 @@ export function HomeScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: C.canvas }}>
       <FlatList
+        onScroll={(event) => {
+          const visible = event.nativeEvent.contentOffset.y < 500;
+          setHeroVisible((current) =>
+            current === visible ? current : visible,
+          );
+        }}
+        scrollEventThrottle={120}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         renderScrollComponent={(props) => <FormScroll {...props} />}
@@ -472,10 +449,15 @@ export function HomeScreen() {
                 )}
               </View>
               <View style={{ padding: 3, paddingTop: 12, gap: 4 }}>
-                <T bold size={13} numberOfLines={2} style={{ minHeight: 34 }}>
+                <T
+                  bold
+                  size={15}
+                  numberOfLines={2}
+                  style={{ minHeight: 42, lineHeight: 21 }}
+                >
                   {p.name}
                 </T>
-                <T size={10} color={C.muted}>
+                <T size={13} color={C.muted}>
                   {p.unit}
                 </T>
                 <View
@@ -518,14 +500,19 @@ export function HomeScreen() {
                       onPress={() => cart.add(p)}
                       style={{
                         backgroundColor: p.available ? C.forest : C.line,
-                        width: 34,
-                        height: 34,
+                        minWidth: 68,
+                        height: 48,
                         borderRadius: 11,
                         justifyContent: "center",
                         alignItems: "center",
+                        flexDirection: "row",
+                        gap: 4,
                       }}
                     >
-                      <Plus size={19} color={C.white} />
+                      <Plus size={15} color={C.white} />
+                      <T size={13} bold color={C.white}>
+                        Add
+                      </T>
                     </Pressable>
                   )}
                 </View>
@@ -1256,8 +1243,7 @@ export function OrdersScreen() {
   );
 }
 export function ProfileScreen() {
-  const { user, logout, refreshUser, setSession, epoch } =
-    useAuth();
+  const { user, logout, refreshUser, setSession, epoch } = useAuth();
   const [edit, setEdit] = useState<"name" | "password" | null>(null),
     [name, setName] = useState(user?.name || ""),
     [oldPassword, setOldPassword] = useState(""),

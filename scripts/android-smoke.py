@@ -121,8 +121,15 @@ def dismiss_keyboard():
         assert not keyboard_visible(), "Keyboard Done control did not dismiss the keyboard"
 
 
-def fill(placeholder, value, keep_keyboard=False):
+def fill(placeholder, value, keep_keyboard=False, replace=False):
     click(placeholder)
+    if replace:
+        node = find(placeholder, desc=True)
+        assert node is not None and node.get("class", "").endswith("EditText"), "Cannot identify input for replacement"
+        current = node.get("text", "") if node.get("hint", "false") != "true" else ""
+        adb("shell", "input", "keyevent", "123")
+        if current:
+            adb("shell", "input", "keyevent", *(["67"] * len(current)))
     adb("shell", "input", "text", value.replace(" ", "%s"))
     if not keep_keyboard:
         dismiss_keyboard()
@@ -240,6 +247,12 @@ try:
     wait("Home", desc=True)
     screenshot("03-customer-home")
     passed("Customer signup and native product grid")
+    wait("Pause basket animation", desc=True)
+    click("Pause basket animation", desc=True)
+    wait("Play basket animation", desc=True)
+    click("Play basket animation", desc=True)
+    screenshot("03a-home-motion")
+    passed("Home 3D animation pause and resume controls")
     click("Search rice, milk, essentials...", desc=True)
     assert_input_above_keyboard("Search rice, milk, essentials...", "keyboard-05-home-search")
     assert find("Home", desc=True) is None, "Customer navigation still consumes typing space"
@@ -294,6 +307,15 @@ try:
     click("Open admin workspace")
     wait("Manage Inventory")
     passed("Separate native admin login")
+    admin_tab("Dashboard")
+    click("Bills", desc=True)
+    click("Weekly", desc=True)
+    click("Previous point", desc=True)
+    screenshot("16-admin-analytics-trend-phone")
+    passed("Interactive admin analytics supports bill counts, weekly grouping and point inspection")
+    click("By gross sales", desc=True)
+    screenshot("17-admin-analytics-products-phone")
+    passed("Admin top-product graph switches to gross sales")
     admin_tab("Manage Inventory")
     wait("Manage inventory", sensitive=True)
     click("Add product")
@@ -326,6 +348,19 @@ try:
     click("Points earned per full", desc=False)
     assert_input_above_keyboard("Points earned per full ₹100 after pickup", "keyboard-12-settings-numeric")
     dismiss_keyboard()
+    fill("Store name", "x", replace=True)
+    click("Save store details")
+    wait("Please check")
+    tree = dump()
+    assert not any(n.get("resource-id", "") in ["android:id/alertTitle", "android:id/button1"] for n in tree.iter("node")), "Error still uses the default Android alert"
+    screenshot("14-themed-error-dialog")
+    click("Okay", desc=True)
+    fill("Store name", "QA Mart", replace=True)
+    click("Save store details")
+    wait("Store updated")
+    screenshot("15-themed-success-dialog")
+    click("Okay", desc=True)
+    passed("Errors and confirmations use app-branded dialogs")
     admin_tab("AI Summary")
     wait("AI summary", sensitive=True)
     click("Ask anything about your mart", desc=True)

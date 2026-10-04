@@ -1,3 +1,4 @@
+import { AppDialog as Alert } from "./dialog-service";
 import React, {
   createContext,
   useContext,
@@ -6,7 +7,7 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { Alert, AppState } from "react-native";
+import { AppState} from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import * as Haptics from "expo-haptics";

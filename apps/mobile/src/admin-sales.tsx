@@ -22,6 +22,7 @@ import {
   Sheet,
   money,
   dateLabel,
+  Notice,
 } from "./ui";
 import {
   StatGrid,
@@ -32,7 +33,8 @@ import {
   TableRow,
   Pagination,
 } from "./admin-common";
-import { RevenueChart, CategoryBars } from "./charts";
+import { CategoryBars } from "./charts";
+import { TrendChart } from "./analytics-charts";
 import { ImportButton, shareCsv } from "./import-ui";
 import type { SalesReport } from "./types";
 export function SalesScreen() {
@@ -136,7 +138,9 @@ export function SalesScreen() {
                 {
                   title: "Gross profit estimate",
                   value: money(stats.profit),
-                  note: "Revenue minus recorded item costs",
+                  note: stats.summaryInvoices
+                    ? `Itemized sales only · ${stats.summaryInvoices} summaries excluded`
+                    : "Revenue minus recorded item costs",
                   icon: <TrendingUp size={16} color={C.forest} />,
                 },
                 {
@@ -147,11 +151,16 @@ export function SalesScreen() {
                 },
               ]}
             />
+            {!!stats.summaryInvoices && (
+              <Notice
+                text={`${stats.summaryInvoices} bill summaries (${money(stats.summaryRevenue)}) count toward revenue. They have no product lines or costs, so stock, product/category sales and profit exclude them.`}
+              />
+            )}
             <Card>
               <T bold size={17} style={{ marginBottom: 15 }}>
                 Sales over time
               </T>
-              <RevenueChart data={sales.data!.daily} />
+              <TrendChart data={sales.data!.daily} />
             </Card>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 15 }}>
               <Card style={{ flex: 1, minWidth: 270 }}>
@@ -250,7 +259,11 @@ export function SalesScreen() {
               <Cell width={210}>
                 <T size={12}>{i.customer || "Walk-in customer"}</T>
                 <T size={10} color={C.muted} style={{ marginTop: 5 }}>
-                  {i.source === "pickup" ? "App pickup" : "Imported invoice"}
+                  {i.source === "pickup"
+                    ? "App pickup"
+                    : i.source === "pos_summary"
+                      ? "Bill summary"
+                      : "Imported invoice"}
                 </T>
               </Cell>
               <Cell width={135}>
@@ -296,6 +309,16 @@ export function SalesScreen() {
               {dateLabel(selected.invoice.invoice_date)}
             </T>
             <Card>
+              {selected.summary && (
+                <View style={{ gap: 10 }}>
+                  <Notice text="Bill-wise summary. The uploaded file has no product lines. Stock and profit are not inferred." />
+                  <T bold>{selected.summary.customer || "Walk-in customer"}</T>
+                  <T size={14}>Received: {money(selected.summary.received)}</T>
+                  <T size={14}>Credit: {money(selected.summary.credit)}</T>
+                  <T size={14}>Cheque: {money(selected.summary.cheque)}</T>
+                  <T size={14}>Card: {money(selected.summary.card)}</T>
+                </View>
+              )}
               {selected.items.map((p: any) => (
                 <View
                   key={p.id}

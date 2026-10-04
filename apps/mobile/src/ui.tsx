@@ -4,7 +4,7 @@ import {
   View,
   Pressable,
   TextInput,
-  ActivityIndicator,
+  Animated,
   Modal,
   Keyboard,
   StyleSheet,
@@ -22,19 +22,33 @@ import {
   Check,
 } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { KeyboardAvoidingView, useKeyboardState } from "react-native-keyboard-controller";
-import { FieldClearanceContext, FormScroll, KeyboardTools, KEYBOARD_CLEARANCE } from "./keyboard-layout";
+import {
+  KeyboardAvoidingView,
+  useKeyboardState,
+} from "react-native-keyboard-controller";
+import {
+  FieldClearanceContext,
+  FormScroll,
+  KeyboardTools,
+  KEYBOARD_CLEARANCE,
+} from "./keyboard-layout";
+import { BrandMark, BrandLoader } from "./brand";
+import { usePressMotion, useEntrance } from "./motion";
+import { LinearGradient } from "expo-linear-gradient";
+const MotionPressable = Animated.createAnimatedComponent(Pressable);
 export const C = {
-  ink: "#162B25",
-  forest: "#1E5C43",
-  mint: "#DDECBC",
-  canvas: "#F7F8F2",
-  muted: "#7B8980",
+  ink: "#183C31",
+  forest: "#175542",
+  mint: "#E6F0D8",
+  canvas: "#FFFAF1",
+  muted: "#596C60",
   line: "#E5EAE3",
   white: "#FFFFFF",
-  amber: "#B77B18",
-  red: "#BC4E4E",
-  blue: "#487FAD",
+  amber: "#825907",
+  red: "#A63434",
+  blue: "#3D6D9C",
+  gold: "#F4CF78",
+  lilac: "#F0EBFA",
 };
 export const F = {
   regular: "DMSans_400Regular",
@@ -88,22 +102,7 @@ export function Brand({
 }) {
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-      <View
-        style={{
-          width: small ? 35 : 46,
-          height: small ? 35 : 46,
-          backgroundColor: inverse ? C.mint : C.forest,
-          borderRadius: small ? 12 : 15,
-          justifyContent: "center",
-          alignItems: "center",
-        }}
-      >
-        <ShoppingBasket
-          size={small ? 21 : 27}
-          color={inverse ? C.forest : C.mint}
-          strokeWidth={1.8}
-        />
-      </View>
+      <BrandMark size={small ? 43 : 59} />
       <View>
         <T size={small ? 19 : 25} bold color={inverse ? C.white : C.ink}>
           aone
@@ -143,6 +142,7 @@ export function Button({
   style?: StyleProp<ViewStyle>;
 }) {
   const [pressed, setPressed] = useState(false);
+  const motion = usePressMotion();
   const bg =
     variant === "primary"
       ? C.forest
@@ -154,7 +154,7 @@ export function Button({
   const text =
     variant === "primary" ? C.white : variant === "danger" ? C.red : C.forest;
   return (
-    <Pressable
+    <MotionPressable
       className="flex-row items-center justify-center gap-2 rounded-2xl px-[18px]"
       accessibilityRole="button"
       accessibilityLabel={title}
@@ -164,19 +164,42 @@ export function Button({
         Keyboard.dismiss();
         onPress();
       }}
-      onPressIn={() => setPressed(true)}
-      onPressOut={() => setPressed(false)}
+      onPressIn={() => {
+        setPressed(true);
+        motion.press(0.97);
+      }}
+      onPressOut={() => {
+        setPressed(false);
+        motion.press(1);
+      }}
       style={[
         {
           backgroundColor: bg,
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
+          borderRadius: 16,
+          paddingHorizontal: 18,
           minHeight: 48,
           opacity: disabled ? 0.5 : pressed ? 0.8 : 1,
+          overflow: "hidden",
+          transform: [{ scale: motion.scale }],
         },
         style,
       ]}
     >
+      {variant === "primary" && (
+        <LinearGradient
+          pointerEvents="none"
+          colors={["#23684F", "#104838"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+      )}
       {loading ? (
-        <ActivityIndicator color={text} />
+        <BrandLoader size={32} />
       ) : (
         <>
           {icon}
@@ -185,19 +208,17 @@ export function Button({
           </T>
         </>
       )}
-    </Pressable>
+    </MotionPressable>
   );
 }
-export const Input = forwardRef<TextInput, TextInputProps & {
-  label?: string;
-  error?: string;
-  right?: React.ReactNode;
-}>(function Input({
-  label,
-  error,
-  right,
-  ...props
-}, ref) {
+export const Input = forwardRef<
+  TextInput,
+  TextInputProps & {
+    label?: string;
+    error?: string;
+    right?: React.ReactNode;
+  }
+>(function Input({ label, error, right, ...props }, ref) {
   const [focused, setFocused] = useState(false);
   const setClearance = useContext(FieldClearanceContext);
   return (
@@ -220,7 +241,7 @@ export const Input = forwardRef<TextInput, TextInputProps & {
         <TextInput
           ref={ref}
           accessibilityLabel={label || props.placeholder}
-          placeholderTextColor="#A2AAA2"
+          placeholderTextColor={C.muted}
           autoCorrect={false}
           autoCapitalize={props.secureTextEntry ? "none" : undefined}
           returnKeyType={props.multiline ? undefined : "done"}
@@ -231,9 +252,14 @@ export const Input = forwardRef<TextInput, TextInputProps & {
             const minHeight = StyleSheet.flatten(props.style)?.minHeight;
             // Keyboard-aware scrolling follows the caret. Keep the full first
             // line of a tall note/address field above the toolbar as well.
-            setClearance(props.multiline
-              ? Math.max(KEYBOARD_CLEARANCE, typeof minHeight === "number" ? minHeight + 36 : 120)
-              : KEYBOARD_CLEARANCE);
+            setClearance(
+              props.multiline
+                ? Math.max(
+                    KEYBOARD_CLEARANCE,
+                    typeof minHeight === "number" ? minHeight + 36 : 120,
+                  )
+                : KEYBOARD_CLEARANCE,
+            );
             props.onFocus?.(e);
           }}
           onBlur={(e) => {
@@ -330,6 +356,7 @@ export function Chip({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={label}
       accessibilityState={{ selected }}
       onPress={onPress}
       style={{
@@ -337,7 +364,8 @@ export function Chip({
         borderWidth: 1,
         borderColor: selected ? C.forest : C.line,
         paddingHorizontal: 14,
-        paddingVertical: 10,
+        paddingVertical: 12,
+        minHeight: 48,
         borderRadius: 13,
         flexDirection: "row",
         alignItems: "center",
@@ -496,7 +524,7 @@ export function ErrorView({
 export function Loading() {
   return (
     <View style={{ padding: 40, alignItems: "center", gap: 12 }}>
-      <ActivityIndicator color={C.forest} />
+      <BrandLoader size={72} />
       <T size={12} color={C.muted}>
         Just a moment...
       </T>
@@ -558,16 +586,18 @@ export function Sheet({
             paddingBottom: keyboardHeight > 0 ? 8 : Math.max(insets.bottom, 18),
           }}
         >
-          {keyboardHeight === 0 && <View
-            style={{
-              height: 5,
-              width: 40,
-              borderRadius: 3,
-              backgroundColor: C.line,
-              alignSelf: "center",
-              marginTop: 10,
-            }}
-          />}
+          {keyboardHeight === 0 && (
+            <View
+              style={{
+                height: 5,
+                width: 40,
+                borderRadius: 3,
+                backgroundColor: C.line,
+                alignSelf: "center",
+                marginTop: 10,
+              }}
+            />
+          )}
           <View
             style={{
               flexDirection: "row",
@@ -580,11 +610,7 @@ export function Sheet({
             <T bold size={22}>
               {title}
             </T>
-            <Pressable
-              accessibilityLabel="Close"
-              onPress={close}
-              hitSlop={15}
-            >
+            <Pressable accessibilityLabel="Close" onPress={close} hitSlop={15}>
               <X size={22} color={C.muted} />
             </Pressable>
           </View>
@@ -675,6 +701,7 @@ export function Page({
   refresh?: () => void;
   refreshing?: boolean;
 }) {
+  const entrance = useEntrance();
   return (
     <FormScroll
       style={{ flex: 1, backgroundColor: C.canvas }}
@@ -696,7 +723,9 @@ export function Page({
         gap: 18,
       }}
     >
-      {children}
+      <Animated.View style={[entrance, { width: "100%", gap: 18 }]}>
+        {children}
+      </Animated.View>
     </FormScroll>
   );
 }

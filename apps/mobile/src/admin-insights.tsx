@@ -1,3 +1,6 @@
+import { BrandLoader } from "./brand";
+import { BannerSettings } from "./banner-settings";
+import { AppDialog as Alert } from "./dialog-service";
 import React, { useState, useRef } from "react";
 import {
   View,
@@ -5,9 +8,7 @@ import {
   TextInput,
   Pressable,
   Platform,
-  ActivityIndicator,
   Switch,
-  Alert,
 } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import {
@@ -40,7 +41,7 @@ import {
   Sheet,
   money,
 } from "./ui";
-import { RevenueChart, CategoryBars, StockDonut } from "./charts";
+import { AnalyticsDashboard } from "./admin-analytics";
 import { StatGrid, RangeBar, rangeDays } from "./admin-common";
 import { registerNotifications, notificationsEnabled } from "./realtime";
 import { KEYBOARD_CLEARANCE } from "./keyboard-layout";
@@ -112,64 +113,7 @@ export function DashboardScreen({
               },
             ]}
           />
-          <Card>
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 17,
-              }}
-            >
-              <View>
-                <T bold size={18}>
-                  Sales rhythm
-                </T>
-                <T size={11} color={C.muted} style={{ marginTop: 5 }}>
-                  {d.sales.range.from} to {d.sales.range.to} · India time
-                </T>
-              </View>
-              <View
-                style={{
-                  height: 9,
-                  width: 9,
-                  borderRadius: 5,
-                  backgroundColor: C.forest,
-                }}
-              />
-            </View>
-            <RevenueChart data={d.sales.daily} />
-          </Card>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 15 }}>
-            <Card style={{ flex: 1, minWidth: 270 }}>
-              <T bold size={17} style={{ marginBottom: 16 }}>
-                Your inventory
-              </T>
-              <StockDonut
-                available={
-                  d.inventory.stats.units - d.inventory.stats.reservedUnits
-                }
-                reserved={d.inventory.stats.reservedUnits}
-              />
-              <Button
-                title="Manage inventory"
-                variant="ghost"
-                onPress={onInventory}
-              />
-            </Card>
-            <Card style={{ flex: 1, minWidth: 270 }}>
-              <T bold size={17} style={{ marginBottom: 20 }}>
-                Category gross sales
-              </T>
-              <CategoryBars
-                currency
-                data={d.sales.categories.map((c) => ({
-                  name: c.name,
-                  value: c.grossRevenue,
-                }))}
-              />
-            </Card>
-          </View>
+          <AnalyticsDashboard dashboard={d} onInventory={onInventory} />
           <Card>
             <View
               style={{
@@ -267,25 +211,36 @@ export function AiScreen() {
       keyboardVerticalOffset={KEYBOARD_CLEARANCE}
       style={{ flex: 1, backgroundColor: C.canvas }}
     >
-      <View style={{ padding: composerFocused ? 12 : 22, gap: composerFocused ? 0 : 15 }}>
+      <View
+        style={{
+          padding: composerFocused ? 12 : 22,
+          gap: composerFocused ? 0 : 15,
+        }}
+      >
         <SectionTitle
           title="AI summary"
-          caption={composerFocused ? undefined : "Ask about your inventory, sales, customers and coupons."}
+          caption={
+            composerFocused
+              ? undefined
+              : "Ask about your inventory, sales, customers and coupons."
+          }
         />
         {!composerFocused && <RangeBar range={range} onChange={setRange} />}
-        {!composerFocused && <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <Sparkles size={13} color={C.forest} />
-          <T size={10} color={C.muted}>
-            Live mart data · Read-only ·{" "}
-            {asOf
-              ? "Updated " +
-                new Date(asOf).toLocaleTimeString("en-IN", {
-                  hour: "numeric",
-                  minute: "2-digit",
-                })
-              : "Gemini assistant"}
-          </T>
-        </View>}
+        {!composerFocused && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Sparkles size={13} color={C.forest} />
+            <T size={10} color={C.muted}>
+              Live mart data · Read-only ·{" "}
+              {asOf
+                ? "Updated " +
+                  new Date(asOf).toLocaleTimeString("en-IN", {
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })
+                : "Gemini assistant"}
+            </T>
+          </View>
+        )}
       </View>
       <ScrollView
         ref={scroll}
@@ -386,7 +341,7 @@ export function AiScreen() {
               padding: 12,
             }}
           >
-            <ActivityIndicator color={C.forest} />
+            <BrandLoader size={38} />
             <T size={12} color={C.muted}>
               Checking your mart’s records...
             </T>
@@ -678,6 +633,7 @@ export function SettingsScreen() {
             </View>
             <Button title="Save store details" onPress={save} loading={busy} />
           </Card>
+          <BannerSettings />
           <Card>
             <T bold size={17} style={{ marginBottom: 10 }}>
               Order notifications

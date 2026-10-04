@@ -1,14 +1,32 @@
 import "../global.css";
-import React from "react";
-import { View, Text, Pressable, ActivityIndicator } from "react-native";
+import React, { useState, useEffect, useCallback } from "react";
+import { View, Text, Pressable } from "react-native";
+import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { NavigationBar } from "expo-navigation-bar";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { KeyboardTools } from "./keyboard-layout";
 import { useFonts } from "expo-font";
-import { AuthProvider, CartProvider } from "./state";
+import { AuthProvider, CartProvider, useAuth } from "./state";
 import { C } from "./ui";
+import { Startup } from "./brand";
+import { DialogHost } from "./dialogs";
+import { MotionProvider } from "./motion";
+
+void SplashScreen.preventAutoHideAsync().catch(() => {});
+
+function StartupGate({ children }: { children: React.ReactNode }) {
+  const { loading } = useAuth();
+  const [finished, setFinished] = useState(false);
+  const finish = useCallback(() => setFinished(true), []);
+  return (
+    <View style={{ flex: 1 }}>
+      {children}
+      {!finished && <Startup ready={!loading} onFinished={finish} />}
+    </View>
+  );
+}
 
 class AppErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -67,38 +85,38 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     DMSans_600SemiBold: require("@expo-google-fonts/dm-sans/600SemiBold/DMSans_600SemiBold.ttf"),
     DMSans_700Bold: require("@expo-google-fonts/dm-sans/700Bold/DMSans_700Bold.ttf"),
   });
+  useEffect(() => {
+    if (loaded || error) void SplashScreen.hideAsync().catch(() => {});
+  }, [loaded, error]);
   return (
     <AppErrorBoundary>
       <SafeAreaProvider>
-        <KeyboardProvider
-          statusBarTranslucent
-          navigationBarTranslucent
-          preserveEdgeToEdge
-        >
-        <StatusBar style="dark" />
-        <NavigationBar style="dark" />
-        <SafeAreaView
-          edges={["top", "left", "right"]}
-          style={{ flex: 1, backgroundColor: C.canvas }}
-        >
-          {!loaded && !error ? (
-            <View
-              style={{
-                flex: 1,
-                justifyContent: "center",
-                alignItems: "center",
-              }}
+        <MotionProvider>
+          <KeyboardProvider
+            statusBarTranslucent
+            navigationBarTranslucent
+            preserveEdgeToEdge
+          >
+            <StatusBar style="dark" />
+            <NavigationBar style="dark" />
+            <SafeAreaView
+              edges={["top", "left", "right"]}
+              style={{ flex: 1, backgroundColor: C.canvas }}
             >
-              <ActivityIndicator color={C.forest} />
-            </View>
-          ) : (
-            <AuthProvider>
-              <CartProvider>{children}</CartProvider>
-            </AuthProvider>
-          )}
-        </SafeAreaView>
-          <KeyboardTools />
-        </KeyboardProvider>
+              {!loaded && !error ? (
+                <Startup ready={false} />
+              ) : (
+                <AuthProvider>
+                  <CartProvider>
+                    <StartupGate>{children}</StartupGate>
+                  </CartProvider>
+                </AuthProvider>
+              )}
+            </SafeAreaView>
+            <DialogHost />
+            <KeyboardTools />
+          </KeyboardProvider>
+        </MotionProvider>
       </SafeAreaProvider>
     </AppErrorBoundary>
   );

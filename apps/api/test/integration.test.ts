@@ -912,9 +912,8 @@ test("sales CSV export and store settings are available only to administrators",
     .send(settings.body.store);
 });
 test("authenticated realtime delivers the custom tone and stops a revoked session", async () => {
-  const { attachRealtime, queueNotification, publishPending } = await import(
-    "../src/notifications.js"
-  );
+  const { attachRealtime, queueNotification, publishPending } =
+    await import("../src/notifications.js");
   const session = await request(app)
     .post("/api/auth/login")
     .send({ phone: "9999999999", password: pass, role: "admin" });
@@ -1049,4 +1048,352 @@ test("rate limits share atomic counters across server instances and expire", asy
   );
   assert.equal((await second.increment("client")).totalHits, 1);
   await first.resetKey("client");
+});
+
+test("bill-wise sales summaries preserve source payments without inventing stock or profit", async () => {
+  const csv =
+    "\uFEFFBill No.,Customer,Received Amount,Credit Amount,Cheque Amount,Card Amount,Net Amount,RefNo,RefDate,Remarks\nSUMMARY-A,Local Customer,111.45,12,0,0,123.45,,17/05/2031,Counter sale\nSUMMARY-B,Walk In Customer,20,0,0,0,20,,2031-05-17,\n";
+  const beforeStock = await rows(
+    "SELECT sku,stock,reserved FROM products ORDER BY sku",
+  );
+  const points = (await row("SELECT count(*) n FROM point_ledger"))!.n;
+  const preview = await request(app)
+    .post("/api/admin/imports/preview")
+    .set(auth())
+    .field("type", "invoices")
+    .attach("file", Buffer.from(csv), "sales.csv");
+  assert.equal(preview.status, 201);
+  assert.equal(preview.body.preview.canCommit, true);
+  assert.equal(preview.body.preview.format, "sales_summary");
+  assert.equal(preview.body.preview.supportsInventoryAdjustment, false);
+  assert.equal(preview.body.preview.invoiceCount, 2);
+  assert.equal(preview.body.preview.rows[0].invoice_date, "2031-05-17");
+  const endpoint = `/api/admin/imports/${preview.body.preview.id}/commit`;
+  assert.equal(
+    (
+      await request(app)
+        .post(endpoint)
+        .set(auth())
+        .send({ adjustInventory: true })
+    ).status,
+    422,
+  );
+  assert.equal(
+    (await request(app).post(endpoint).set(auth()).send({})).status,
+    200,
+  );
+  const again = await request(app).post(endpoint).set(auth()).send({});
+  assert.equal(again.body.alreadyCommitted, true);
+  assert.deepEqual(
+    await rows("SELECT sku,stock,reserved FROM products ORDER BY sku"),
+    beforeStock,
+  );
+  assert.equal((await row("SELECT count(*) n FROM point_ledger"))!.n, points);
+  const report = await request(app)
+    .get("/api/admin/reports/sales?from=2031-05-17&to=2031-05-17")
+    .set(auth());
+  assert.equal(report.body.stats.revenue, 14345);
+  assert.equal(report.body.stats.summaryRevenue, 14345);
+  assert.equal(report.body.stats.summaryInvoices, 2);
+  assert.equal(report.body.stats.profit, 0);
+  assert.equal(report.body.stats.units, 0);
+  assert.deepEqual(report.body.topProducts, []);
+  const saved = (await row(
+    "SELECT id FROM invoices WHERE number='SUMMARY-A'",
+  ))!;
+  const details = await request(app)
+    .get(`/api/admin/reports/invoices/${saved.id}`)
+    .set(auth());
+  assert.deepEqual(details.body.items, []);
+  assert.equal(details.body.summary.customer, "Local Customer");
+  assert.equal(details.body.summary.received, 11145);
+  assert.equal(details.body.summary.credit, 1200);
+  assert.equal(
+    JSON.parse(details.body.summary.sourceRecord).Remarks,
+    "Counter sale",
+  );
+  assert.equal(
+    (
+      await request(app)
+        .post("/api/admin/imports/preview")
+        .set(auth())
+        .field("type", "invoices")
+        .attach("file", Buffer.from(csv), "copy.csv")
+    ).status,
+    409,
+  );
+});
+
+test("sales summaries reject missing dates, duplicate bills and invalid money before any import", async () => {
+  for (const csv of [
+    "Bill No.,Net Amount,RefDate\nMISSING-DATE,20,\n",
+    "Bill No.,Net Amount,RefDate\nBAD-DATE,20,31/02/2031\n",
+    "Bill No.,Net Amount,RefDate\nBAD-MONEY,-20,2031-05-17\n",
+    "Bill No.,Net Amount,RefDate\nREPEATED-BILL,20,2031-05-17\nREPEATED-BILL,20,2031-05-17\n",
+    "Bill No.,Net Amount,RefDate\nSUMMARY-A,123.45,2031-05-17\n",
+  ]) {
+    const preview = await request(app)
+      .post("/api/admin/imports/preview")
+      .set(auth())
+      .field("type", "invoices")
+      .attach("file", Buffer.from(csv), "invalid-summary.csv");
+    assert.equal(preview.status, 201);
+    assert.equal(preview.body.preview.canCommit, false);
+    assert.ok(preview.body.preview.errorCount > 0);
+    assert.equal(
+      (
+        await request(app)
+          .post(`/api/admin/imports/${preview.body.preview.id}/commit`)
+          .set(auth())
+          .send({})
+      ).status,
+      422,
+    );
+  }
+});
+
+test("banner upload validates decoded images and enforces admin permissions", async () => {
+  assert.equal(
+    (await request(app).get("/api/admin/settings/banners")).status,
+    401,
+  );
+  assert.equal(
+    (
+      await request(app)
+        .get("/api/admin/settings/banners")
+        .set(auth(otherToken))
+    ).status,
+    403,
+  );
+  const bad = await request(app)
+    .post("/api/admin/settings/banners")
+    .set(auth())
+    .field("title", "Offers")
+    .field("altText", "Local offers")
+    .attach("file", Buffer.from("not an image"), "fake.jpg");
+  assert.equal(bad.status, 422);
+  assert.equal((await row("SELECT count(*) n FROM store_banners"))!.n, 0);
+});
+
+test("banner lifecycle persists images, refreshes replacements and enforces one to five banners atomically", async () => {
+  const sharp = (await import("sharp")).default;
+  const png = await sharp({
+    create: { width: 64, height: 32, channels: 3, background: "#F4CF78" },
+  })
+    .png()
+    .toBuffer();
+  const create = () =>
+    request(app)
+      .post("/api/admin/settings/banners")
+      .set(auth())
+      .field("title", "Weekly essentials")
+      .field("altText", "Rice and oil offers")
+      .attach("file", png, "offer.png");
+  for (let i = 0; i < 4; i++) assert.equal((await create()).status, 201);
+  const concurrent = await Promise.all([create(), create()]);
+  assert.deepEqual(concurrent.map((r) => r.status).sort(), [201, 409]);
+  let banners = (await request(app).get("/api/catalog/store")).body.store
+    .banners;
+  assert.equal(banners.length, 5);
+  const image = await request(app).get(banners[0].imagePath);
+  assert.equal(image.status, 200);
+  assert.match(image.headers["content-type"], /image\/jpeg/);
+  assert.equal((await sharp(image.body).metadata()).width, 64);
+  const first = banners[0],
+    ids = banners.map((b: any) => b.id).reverse();
+  const reordered = await request(app)
+    .patch("/api/admin/settings/banners/order")
+    .set(auth())
+    .send({ ids });
+  assert.equal(reordered.status, 200);
+  assert.deepEqual(
+    reordered.body.banners.map((b: any) => b.id),
+    ids,
+  );
+  assert.equal(
+    (
+      await request(app)
+        .patch("/api/admin/settings/banners/order")
+        .set(auth())
+        .send({ ids: [ids[0], ids[0]] })
+    ).status,
+    409,
+  );
+  const replaced = await request(app)
+    .put(`/api/admin/settings/banners/${first.id}`)
+    .set(auth())
+    .field("title", "Updated offer")
+    .field("altText", "Updated local offers")
+    .attach("file", png, "new.png");
+  assert.equal(replaced.status, 200);
+  assert.notEqual(
+    replaced.body.banners.find((b: any) => b.id === first.id).imagePath,
+    first.imagePath,
+  );
+  banners = replaced.body.banners;
+  for (const banner of banners.slice(0, 4))
+    assert.equal(
+      (
+        await request(app)
+          .delete(`/api/admin/settings/banners/${banner.id}`)
+          .set(auth())
+      ).status,
+      200,
+    );
+  assert.equal(
+    (
+      await request(app)
+        .delete(`/api/admin/settings/banners/${banners[4].id}`)
+        .set(auth())
+    ).status,
+    409,
+  );
+  assert.equal((await row("SELECT count(*) n FROM store_banners"))!.n, 1);
+});
+
+test("advanced analytics compares equal India-time periods and separates itemized data from summaries", async () => {
+  const ids: string[] = [];
+  const add = async (
+    date: string,
+    total: number,
+    source: string,
+    userId: string | null = null,
+  ) => {
+    const id = randomUUID();
+    ids.push(id);
+    await run(
+      "INSERT INTO invoices VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+      id,
+      `ANALYTICS-${id}`,
+      null,
+      userId,
+      null,
+      date,
+      total,
+      0,
+      total,
+      source,
+      now(),
+    );
+    return id;
+  };
+  try {
+    await add("2095-01-24T18:30:00.000Z", 40000, "import");
+    const first = await add(
+      "2095-01-31T18:30:00.000Z",
+      10000,
+      "import",
+      customerId,
+    );
+    const last = await add(
+      "2095-02-07T18:29:59.000Z",
+      20000,
+      "import",
+      customerId,
+    );
+    await add("2095-02-03T06:30:00.000Z", 30000, "pos_summary");
+    await add("2095-02-07T18:30:00.000Z", 900000, "pos_summary");
+    for (const [id, quantity] of [
+      [first, 1],
+      [last, 2],
+    ] as const)
+      await run(
+        "INSERT INTO invoice_items VALUES(?,?,?,?,?,?,?,?,?,?)",
+        randomUUID(),
+        id,
+        productId,
+        "RICE",
+        "Rice",
+        "Groceries",
+        quantity,
+        10000,
+        5000,
+        quantity * 10000,
+      );
+    const response = await request(app)
+      .get("/api/admin/reports/dashboard?from=2095-02-01&to=2095-02-07")
+      .set(auth());
+    assert.equal(response.status, 200);
+    const { sales, analytics: a } = response.body;
+    assert.equal(sales.stats.revenue, 60000);
+    assert.equal(sales.stats.profit, 15000);
+    assert.deepEqual(a.comparison.previousRange, {
+      from: "2095-01-25",
+      to: "2095-01-31",
+    });
+    assert.deepEqual(a.comparison.previous, {
+      invoices: 1,
+      revenue: 40000,
+      averageOrder: 40000,
+    });
+    assert.deepEqual(a.comparison.changes, {
+      revenue: 50,
+      invoices: 200,
+      averageOrder: -50,
+    });
+    assert.equal(a.comparison.daily.length, 7);
+    assert.equal(a.comparison.daily[0].revenue, 40000);
+    assert.equal(sales.daily[0].revenue, 10000);
+    assert.equal(sales.daily[6].revenue, 20000);
+    assert.equal(
+      a.sources.reduce((sum: number, v: any) => sum + v.revenue, 0),
+      60000,
+    );
+    assert.equal(
+      a.sources.find((v: any) => v.source === "summary").revenue,
+      30000,
+    );
+    assert.equal(a.weekdays.length, 7);
+    assert.equal(
+      a.weekdays.reduce((sum: number, v: any) => sum + v.invoices, 0),
+      3,
+    );
+    assert.equal(a.customers.purchasingAccounts, 1);
+    assert.equal(a.customers.repeatAccounts, 1);
+    assert.equal(a.customers.repeatRate, 100);
+    assert.deepEqual(a.coverage, {
+      itemizedRevenue: 30000,
+      summaryRevenue: 30000,
+      itemizedInvoices: 2,
+    });
+    assert.equal(sales.topProductsByRevenue[0].grossRevenue, 30000);
+    assert.equal(
+      a.stockHealth.healthy + a.stockHealth.low + a.stockHealth.outOfStock,
+      response.body.inventory.stats.products,
+    );
+  } finally {
+    for (const id of ids) {
+      await run("DELETE FROM invoice_items WHERE invoice_id=?", id);
+      await run("DELETE FROM invoices WHERE id=?", id);
+    }
+  }
+});
+
+test("analytics handles empty periods without invented growth and remains admin-only", async () => {
+  const path = "/api/admin/reports/dashboard?from=2094-01-01&to=2094-01-07";
+  assert.equal((await request(app).get(path)).status, 401);
+  assert.equal(
+    (await request(app).get(path).set(auth(otherToken))).status,
+    403,
+  );
+  const response = await request(app).get(path).set(auth());
+  assert.equal(response.status, 200);
+  const a = response.body.analytics;
+  assert.deepEqual(a.comparison.changes, {
+    revenue: null,
+    invoices: null,
+    averageOrder: null,
+  });
+  assert.equal(a.comparison.daily.length, 7);
+  assert.equal(a.customers.repeatRate, 0);
+  assert.equal(a.sources.length, 0);
+  assert.equal(a.orderStatuses.length, 0);
+  assert.equal(
+    (
+      await request(app)
+        .get("/api/admin/reports/dashboard?from=2094-02-30&to=2094-03-07")
+        .set(auth())
+    ).status,
+    400,
+  );
 });
