@@ -41,6 +41,8 @@ const productRow = z
         "tea",
       ])
       .default("bag"),
+    source_format: z.literal("pos_inventory").optional(),
+    source_record: z.record(z.string().max(120), z.string().max(10000)).optional(),
   })
   .refine((d) => d.mrp >= d.price, "MRP must be at least the selling price");
 const invoiceRow = z
@@ -66,13 +68,39 @@ const invoiceRow = z
     "Line discount cannot exceed line amount",
   );
 export type ImportError = { row: number; message: string };
+function headerKey(value: string) {
+  return value.trim().toLowerCase().replace(/[\s.\-]+/g, "_");
+}
 function normalize(record: Record<string, unknown>) {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(record)) {
-    const key = k.trim().toLowerCase().replaceAll(" ", "_");
+    const key = headerKey(k);
     out[key] = typeof v === "string" ? v.trim() : v;
   }
   return out;
+}
+function inventoryValue(record: Record<string, unknown>) {
+  const value = normalize(record);
+  if (!("salerate" in value && "curr_qty" in value &&
+    ("nametodisplay" in value || "product" in value))) return value;
+  const name = String(value.nametodisplay || value.product || "").trim();
+  const barcode = String(value.barcode || "").trim();
+  // Zero is a missing POS barcode, never a shared SKU. Identity is independent
+  // of row order, stock and price so later stock snapshots update the same item.
+  const identity = [name, value.unit1 || "Pack", value.unit2 || "", value.prodconv1 || ""]
+    .map(v => String(v).trim().replace(/\s+/g, " ").toUpperCase()).join("|");
+  return {
+    sku: barcode && !/^0+$/.test(barcode) ? barcode :
+      `POS-${createHash("sha256").update(identity).digest("hex").slice(0, 20).toUpperCase()}`,
+    name,
+    category: value.category,
+    price: value.salerate,
+    mrp: value.mrp,
+    stock: value.curr_qty,
+    unit: value.unit1 || "Pack",
+    source_format: "pos_inventory",
+    source_record: Object.fromEntries(Object.entries(record).map(([k, v]) => [k, String(v ?? "")])),
+  };
 }
 export function validateRows(type: string, records: Record<string, unknown>[]) {
   const normalized: Record<string, any>[] = [],
@@ -84,7 +112,7 @@ export function validateRows(type: string, records: Record<string, unknown>[]) {
       : ["invoice_number", "invoice_date", "sku", "quantity", "unit_price"];
   const schema = type === "products" ? productRow : invoiceRow;
   for (const [index, record] of records.entries()) {
-    const value = normalize(record);
+    const value = type === "products" ? inventoryValue(record) : normalize(record);
     for (const k of required)
       if (value[k] === undefined || value[k] === "")
         errors.push({ row: index + 2, message: `${k} is required` });
@@ -170,12 +198,12 @@ importsRouter.post("/preview", upload.single("file"), async (req, res) => {
       records = parse(file!.buffer, {
         bom: true,
         columns: (headers: string[]) => {
-          const clean = headers.map((v) =>
-            v.trim().toLowerCase().replaceAll(" ", "_"),
-          );
+          const clean = headers.map(headerKey);
           if (new Set(clean).size !== clean.length)
             throw new Error("Duplicate CSV headers");
-          return clean;
+          // Keep source column names in the stored POS record. Validation uses
+          // normalized headers and rejects collisions before parsing rows.
+          return headers;
         },
         skip_empty_lines: true,
         trim: true,
@@ -237,6 +265,8 @@ importsRouter.post("/preview", upload.single("file"), async (req, res) => {
     now(),
   );
   const invoiceCount = new Set(normalized.map((x) => x.invoice_number)).size;
+  const pos = type === "products" && normalized.some(p => p.source_format === "pos_inventory");
+  const generatedSkus = pos ? normalized.filter(p => /^POS-/.test(p.sku)).length : 0;
   res
     .status(201)
     .json({
@@ -255,7 +285,9 @@ importsRouter.post("/preview", upload.single("file"), async (req, res) => {
         note:
           type === "invoices"
             ? "Historical invoices do not change inventory unless you enable stock adjustment. Review extracted amounts before confirming."
-            : "Stock is the total on-hand quantity; active order reservations are preserved.",
+            : pos
+              ? `POS inventory detected: SaleRate is the selling price in rupees; Curr.Qty is on-hand stock in Unit1. ${generatedSkus} missing/zero barcodes receive stable product IDs. Original columns are saved. Existing costs, images and stock-alert settings are retained; new items have no purchase cost or image in this file. Set purchase costs before relying on profit reports. Active order reservations are preserved.`
+              : "Stock is the total on-hand quantity; active order reservations are preserved.",
       },
     });
 });
@@ -309,6 +341,11 @@ importsRouter.post("/:id/commit", (req, res) => {
         }
         const old = row("SELECT * FROM products WHERE sku=?", p.sku),
           pid = old?.id || id();
+        const pos = p.source_format === "pos_inventory";
+        const cost = pos && old ? old.cost : money(p.cost);
+        const threshold = pos && old ? old.low_stock_threshold : p.low_stock_threshold;
+        const image = pos && old ? old.image_url : p.image_url;
+        const artwork = pos && old ? old.artwork : p.artwork;
         if (old)
           run(
             "UPDATE products SET name=?,category_id=?,price=?,mrp=?,cost=?,stock=?,low_stock_threshold=?,unit=?,image_url=?,artwork=?,updated_at=? WHERE id=?",
@@ -316,12 +353,12 @@ importsRouter.post("/:id/commit", (req, res) => {
             category.id,
             money(p.price),
             money(p.mrp),
-            money(p.cost),
+            cost,
             p.stock,
-            p.low_stock_threshold,
+            threshold,
             p.unit,
-            p.image_url,
-            p.artwork,
+            image,
+            artwork,
             now(),
             pid,
           );
@@ -334,15 +371,19 @@ importsRouter.post("/:id/commit", (req, res) => {
             category.id,
             money(p.price),
             money(p.mrp),
-            money(p.cost),
+            cost,
             p.stock,
-            p.low_stock_threshold,
+            threshold,
             p.unit,
-            p.image_url,
-            p.artwork,
+            image,
+            artwork,
             now(),
             now(),
           );
+        if (pos) run(
+          "INSERT INTO product_import_sources(product_id,import_batch_id,format,record_json,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(product_id) DO UPDATE SET import_batch_id=excluded.import_batch_id,format=excluded.format,record_json=excluded.record_json,updated_at=excluded.updated_at",
+          pid, bid, p.source_format, JSON.stringify(p.source_record), now(),
+        );
         run(
           "INSERT INTO inventory_movements VALUES(?,?,?,?,?,?,?)",
           id(),

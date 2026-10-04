@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS device_tokens(token TEXT PRIMARY KEY,user_id TEXT NOT
 CREATE TABLE IF NOT EXISTS notification_outbox(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),title TEXT NOT NULL,body TEXT NOT NULL,data_json TEXT NOT NULL,sound TEXT NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,available_at TEXT NOT NULL,sent_at TEXT,last_error TEXT,created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS push_receipts(id TEXT PRIMARY KEY,token TEXT NOT NULL,check_at TEXT NOT NULL,checked_at TEXT);
 CREATE TABLE IF NOT EXISTS import_batches(id TEXT PRIMARY KEY,type TEXT NOT NULL,filename TEXT NOT NULL,checksum TEXT NOT NULL,payload_json TEXT NOT NULL,errors_json TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'preview',actor_id TEXT NOT NULL REFERENCES users(id),created_at TEXT NOT NULL,committed_at TEXT);
+CREATE TABLE IF NOT EXISTS product_import_sources(product_id TEXT PRIMARY KEY REFERENCES products(id),import_batch_id TEXT NOT NULL REFERENCES import_batches(id),format TEXT NOT NULL,record_json TEXT NOT NULL,updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS audit_log(id TEXT PRIMARY KEY,actor_id TEXT NOT NULL REFERENCES users(id),action TEXT NOT NULL,entity_id TEXT,detail_json TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id,deleted_at);
@@ -65,7 +66,7 @@ CREATE INDEX IF NOT EXISTS idx_invoices_date ON invoices(invoice_date);
 CREATE INDEX IF NOT EXISTS idx_redemptions_coupon ON coupon_redemptions(coupon_id,state,user_id);
 CREATE INDEX IF NOT EXISTS idx_outbox_due ON notification_outbox(sent_at,available_at);
 CREATE INDEX IF NOT EXISTS idx_point_ledger_user ON point_ledger(user_id,created_at DESC);
-PRAGMA user_version=1;
+PRAGMA user_version=2;
 `);
 export function row<T = Record<string, any>>(
   sql: string,

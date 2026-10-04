@@ -19,9 +19,9 @@ One React Native Android app has separate Customer and Admin workspaces. Admin u
 | AI Summary | Read-only Gemini chat about current inventory, selected sales range, customers and coupons; Hindi/English questions |
 | Notifications | Authenticated realtime updates, persistent notification inbox/outbox and bundled custom new-order tone; remote push integration |
 
-**UI update:** version **1.0.1 / Android code 2** adds keyboard-aware scrolling to connection/login screens, customer/admin pages and dialogs; Previous/Next/Done controls; extra clearance for multiline notes/addresses; visible AI chat input; inline signup validation; and safe bottom spacing. Mobile TypeScript, Expo lint and Android export have passed. [The current APK build](https://github.com/mohitchoyal2002/Aone-mart-app/actions/runs/37180966333) is compiling; Android 10 (API 29) and Android 16 (API 36) open-keyboard checks run after it completes. Download the `Aone-Mart-APK` artifact from the successful build.
+**UI update:** version **1.0.1 / Android code 2** adds keyboard-aware scrolling, Previous/Next/Done controls, multiline field clearance, visible chat input, inline signup validation and safe bottom spacing. [APK build 37183515362](https://github.com/mohitchoyal2002/Aone-mart-app/actions/runs/37183515362) succeeded. [Native QA 37184197151](https://github.com/mohitchoyal2002/Aone-mart-app/actions/runs/37184197151) passed **28 checks on each of Android 10/API 29 and Android 16/API 36**, including 14 open-keyboard field checks per platform, customer pickup and admin tablet navigation. Download `Aone-Mart-APK` from the successful build.
 
-The previous 1.0.0 release passed native customer/admin smoke checks and private release signing verification. The current build uses the CI build signing key; use the retained private Aone Mart key for updates over the previously delivered APK. Notifications remain deferred (`ENABLE_NOTIFICATIONS=false`). Backend deployment is paused while an alternate host is selected; no public backend URL is available yet. See [verification](docs/verification.md) for completed checks and their scope.
+The CI artifact uses the build signing key. Updates over the previously delivered APK need the retained private Aone Mart key; the privately signed APK is delivered separately. Notifications remain deferred (`ENABLE_NOTIFICATIONS=false`). Backend deployment was requested again, but the connected Render workspace is billing-suspended; no public backend URL has been deployed. The backend can also run on a VPS with a persistent disk. See [deployment](docs/deploy-backend.md) and [verification](docs/verification.md).
 
 The supplied Google share link could not be resolved in this environment. The mart name is used, while its address, opening hours, logo and actual catalog have not been verified. Enter verified store details in Admin → Store Settings. Sample products are explicitly labelled when the optional seed is used.
 
@@ -180,6 +180,31 @@ Template: `samples/products.csv`. All price fields are **rupees** in CSV/forms; 
 | `artwork` | `rice`, `milk`, `oil`, `fruit`, `vegetable`, `soap`, `bread`, `bag`, `snack` or `tea` |
 
 Existing active SKUs are updated; missing categories are created. A hidden SKU must be restored through an appropriate inventory update before it can be imported. CSV import stock cannot be below reserved quantity.
+
+### Existing POS inventory export
+
+Inventory also accepts the mart's existing export with `NameToDisplay, Barcode, MRP, SaleRate, Curr.Qty, Alias, GroupName, Category, Brand, Product, Unit1, ProdConv1, Unit2`. No manual column conversion is required.
+
+| Export column | App/database field |
+| --- | --- |
+| `NameToDisplay` (fallback `Product`) | Product name |
+| `Barcode` | SKU as text, retaining leading zeros |
+| `SaleRate` / `MRP` | Selling price / MRP in rupees; stored as paise |
+| `Curr.Qty` | Total on-hand stock; active reservations retained |
+| `Category` | Category, created if needed |
+| `Unit1` | Sale unit; quantities are not silently converted |
+| Remaining original columns | Retained in `product_import_sources.record_json` and the audited import payload |
+
+Blank/zero barcodes receive separate stable `POS-...` SKUs derived from the product name and unit fields. Row order, stock and price changes do not change those IDs. A renamed product or changed unit without a real barcode needs review because it can generate a new SKU. Repeated real barcodes, negative/fractional stock, invalid prices and stock below reserved quantities block the whole file. Out-of-stock items remain in the catalog with zero availability.
+
+POS snapshots preserve existing purchase costs, images, artwork and stock-alert thresholds because the export does not supply them. New items start with cost 0 and no image; enter actual purchase costs before relying on estimated profit. Source supplier/brand fields are stored privately and are not exposed by customer catalog responses.
+
+For an authenticated command-line import, run from the repository root using the private backend environment. Preview is the default; `--commit` writes the validated file through the same API as the app:
+
+```sh
+node --env-file=apps/api/.env apps/api/scripts/import-inventory.mjs /path/inventory.csv https://YOUR-API-ORIGIN --commit
+```
+
 
 ### Sales invoices
 

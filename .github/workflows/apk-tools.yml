@@ -1,0 +1,28 @@
+name: Android signing tools
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/apk-tools.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tools:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Prepare official Android tools
+        run: |
+          sdkmanager "build-tools;36.0.0"
+          mkdir -p tools/lib
+          cp "$ANDROID_HOME/build-tools/36.0.0/apksigner" tools/
+          cp "$ANDROID_HOME/build-tools/36.0.0/zipalign" tools/
+          cp "$ANDROID_HOME/build-tools/36.0.0/aapt" tools/
+          cp "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" tools/lib/
+          chmod +x tools/apksigner tools/zipalign tools/aapt
+          sha256sum tools/apksigner tools/zipalign tools/aapt tools/lib/apksigner.jar > tools/SHA256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Android-build-tools-36
+          path: tools/
+          retention-days: 7

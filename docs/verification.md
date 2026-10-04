@@ -2,7 +2,15 @@
 
 ## Current UI update — 1.0.1 / code 2
 
-Keyboard-aware forms, modal and numeric-keyboard controls, multiline field clearance, chat composer positioning and navigation/safe-area fixes are implemented. Mobile TypeScript, Expo lint and Android export have passed. APK build [37180966333](https://github.com/mohitchoyal2002/Aone-mart-app/actions/runs/37180966333) is in progress. The native workflow will measure focused field/toolbar/IME bounds on Android API 29 and 36 while the software keyboard is open; these new native checks are pending.
+[APK build 37183515362](https://github.com/mohitchoyal2002/Aone-mart-app/actions/runs/37183515362) succeeded from commit `c65323667419256fbf43b006b2b17eb2f8a85700`. Mobile TypeScript and Expo lint passed. [Native workflow 37184197151](https://github.com/mohitchoyal2002/Aone-mart-app/actions/runs/37184197151) passed **28 checks on API 29 and 28 on API 36**, with 14 open-keyboard field checks per platform.
+
+The checks measure the full focused input and keyboard-toolbar bounds against the visible IME. They cover connection URL, signup Name/Phone/Password and Next controls, search and hidden/restored bottom navigation, cart note, password dialog, inventory numeric/unit fields, account password, coupon numeric field, store instructions/rewards and AI composer/Send button. Customer order/pickup and separate admin/tablet navigation also passed. Modal, chat and closed-keyboard system-navigation screenshots were reviewed. These are emulator checks, not a claim that every physical device was tested.
+
+## Backend inventory update
+
+The backend integration suite now passes **26/26**, with no skipped tests. Backend TypeScript and build passed. Four added integration cases verify POS column mapping, exact decimal prices/leading-zero barcodes, saved source fields, separate stable IDs for zero barcodes, updates after row reordering, preserved admin costs/images/settings/reservations, and complete rejection of invalid stock or duplicate real barcodes. The existing order, coupon, reward, soft deletion, invoice, session and realtime checks continue to pass.
+
+The uploaded inventory contains 45 rows and 1,315 on-hand units across 10 categories. It contains no purchase cost or product images. Actual database import/restart verification is recorded separately in the private inventory import report; commercial data and the SQLite backup are excluded from GitHub.
 
 ## Previous release — 1.0.0 completed checks
 
@@ -70,8 +78,8 @@ The JavaScript export and prebuild are compilation preparation, not an APK insta
 | Native notification tap from killed app | Requires the above compiled-device test. Routing code is implemented but has not been exercised on a device. |
 | PDF/image invoice extraction against real mart invoices | Extraction and mandatory preview/review code are present; only deterministic CSV imports were integration-tested. Test actual scans, correct missing SKUs/dates using CSV. |
 | Docker image execution | Docker runtime unavailable; Dockerfile supplied for deployment. |
-| Public backend deployment | Deployment is paused at the user's request while an alternate hosting option is selected. The Render Blueprint is prepared; no public URL has been deployed. |
-| Actual mart details/catalog | Google share URL was inaccessible; configure verified information and import the real catalog. |
+| Public backend deployment | Deployment is requested, but the connected Render workspace is suspended for billing. A compatible active host or VPS access is required; no public URL has been deployed. |
+| Actual mart details/catalog | The uploaded real CSV is supported and imported separately. The Google share URL was inaccessible; configure verified address and store details. |
 | Real money/payment processing | Checkout is pay-at-mart pickup. No payment gateway integration was requested or implemented. |
 
 Sample catalog data is intended for development. Historical invoice CSV examples are illustrative; they are not imported into the local sample catalog automatically. There are no fabricated sales dashboards or live revenue claims.

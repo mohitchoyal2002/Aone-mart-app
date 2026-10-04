@@ -442,6 +442,85 @@ test("invalid CSV rows and duplicate SKUs block the entire import", async () => 
   );
   assert.equal(row("SELECT id FROM products WHERE sku=?", "BAD"), undefined);
 });
+const posHeader = "NameToDisplay,Barcode,MRP,SaleRate,Curr.Qty,Alias,GroupName,Category,Brand,Product,Unit1,ProdConv1,Unit2\n";
+async function previewPos(lines: string) {
+  return request(app).post("/api/admin/imports/preview").set(auth())
+    .field("type", "products").attach("file", Buffer.from(posHeader + lines), "inventory.csv");
+}
+test("POS export maps exact prices and stock and saves all source columns", async () => {
+  const p = await previewPos("Test chocolate,0089000001,10,9.8,7,,Test Supplier,Chocolate,Test Brand,Chocolate original,Pack,1,PCS\n");
+  assert.equal(p.status, 201);
+  assert.equal(p.body.preview.canCommit, true);
+  assert.match(p.body.preview.note, /POS inventory detected/);
+  assert.equal(row("SELECT id FROM products WHERE sku='0089000001'"), undefined);
+  const commit = await request(app).post(`/api/admin/imports/${p.body.preview.id}/commit`).set(auth()).send({});
+  assert.equal(commit.status, 200);
+  const product = row("SELECT * FROM products WHERE sku='0089000001'")!;
+  assert.equal(product.price, 980);
+  assert.equal(product.mrp, 1000);
+  assert.equal(product.stock, 7);
+  assert.equal(product.unit, "Pack");
+  const source = JSON.parse(row("SELECT record_json FROM product_import_sources WHERE product_id=?", product.id)!.record_json);
+  assert.equal(source.Barcode, "0089000001");
+  assert.equal(source.Brand, "Test Brand");
+  assert.equal(source.GroupName, "Test Supplier");
+  assert.equal(source.ProdConv1, "1");
+  assert.equal(source.Unit2, "PCS");
+  const replay = await previewPos("Test chocolate,0089000001,10,9.8,7,,Test Supplier,Chocolate,Test Brand,Chocolate original,Pack,1,PCS\n");
+  assert.equal(replay.status, 409);
+});
+test("zero POS barcodes get distinct stable SKUs when file rows and quantities change", async () => {
+  const lines = [
+    "Test box alpha,0,20,15,0,,Supplier,Containers,,Box alpha,Pack,1,PCS\n",
+    "Test box beta,0,20,16,3,,Supplier,Containers,,Box beta,Pack,1,PCS\n",
+  ];
+  const p = await previewPos(lines.join(""));
+  assert.equal(p.body.preview.canCommit, true);
+  const skus = p.body.preview.rows.map((x: Record<string, any>) => x.sku);
+  assert.equal(new Set(skus).size, 2);
+  assert.ok(skus.every((sku: string) => sku.startsWith("POS-")));
+  assert.equal((await request(app).post(`/api/admin/imports/${p.body.preview.id}/commit`).set(auth()).send({})).status, 200);
+  const before = row("SELECT id FROM products WHERE sku=?", skus[0])!.id;
+  const changed = await previewPos(lines[1] + lines[0].replace(",15,0,", ",14,4,"));
+  assert.equal(changed.body.preview.canCommit, true);
+  assert.deepEqual(changed.body.preview.rows.map((x: Record<string, any>) => x.sku), [...skus].reverse());
+  assert.equal((await request(app).post(`/api/admin/imports/${changed.body.preview.id}/commit`).set(auth()).send({})).status, 200);
+  assert.equal(row("SELECT id FROM products WHERE sku=?", skus[0])!.id, before);
+  assert.equal(row("SELECT stock FROM products WHERE sku=?", skus[0])!.stock, 4);
+});
+test("POS stock snapshots preserve current reservations and manually recorded costs and images", async () => {
+  const product = row("SELECT * FROM products WHERE sku='0089000001'")!;
+  run("UPDATE products SET reserved=2 WHERE id=?", product.id);
+  const p = await previewPos("Test chocolate,0089000001,10,9.5,6,,New Supplier,Chocolate,New Brand,Chocolate original,Pack,1,PCS\n");
+  assert.equal(p.body.preview.canCommit, true);
+  // Admin edits made after preview must also survive a stock-only POS commit.
+  run("UPDATE products SET cost=650,image_url='https://example.com/chocolate.png',artwork='snack',low_stock_threshold=3 WHERE id=?", product.id);
+  assert.equal((await request(app).post(`/api/admin/imports/${p.body.preview.id}/commit`).set(auth()).send({})).status, 200);
+  const updated = row("SELECT * FROM products WHERE id=?", product.id)!;
+  assert.equal(updated.stock, 6);
+  assert.equal(updated.reserved, 2);
+  assert.equal(updated.cost, 650);
+  assert.equal(updated.image_url, "https://example.com/chocolate.png");
+  assert.equal(updated.artwork, "snack");
+  assert.equal(updated.low_stock_threshold, 3);
+  const bad = await previewPos("Test chocolate,0089000001,10,9.5,1,,Supplier,Chocolate,,Chocolate original,Pack,1,PCS\n");
+  assert.equal(bad.body.preview.canCommit, false);
+  assert.equal((await request(app).post(`/api/admin/imports/${bad.body.preview.id}/commit`).set(auth()).send({})).status, 422);
+  assert.equal(row("SELECT stock FROM products WHERE id=?", product.id)!.stock, 6);
+  run("UPDATE products SET reserved=0 WHERE id=?", product.id);
+});
+test("POS negative or fractional stock and repeated real barcodes block the whole import", async () => {
+  const p = await previewPos([
+    "Fractional item,POS-BAD1,20,10,1.5,,Supplier,Containers,,Fractional,Pack,1,PCS\n",
+    "Negative item,POS-BAD2,20,10,-1,,Supplier,Containers,,Negative,Pack,1,PCS\n",
+    "Duplicate first,POS-BAD3,20,10,2,,Supplier,Containers,,First,Pack,1,PCS\n",
+    "Duplicate second,POS-BAD3,20,10,2,,Supplier,Containers,,Second,Pack,1,PCS\n",
+  ].join(""));
+  assert.equal(p.body.preview.canCommit, false);
+  assert.ok(p.body.preview.errorCount >= 3);
+  assert.equal((await request(app).post(`/api/admin/imports/${p.body.preview.id}/commit`).set(auth()).send({})).status, 422);
+  assert.equal(row("SELECT count(*) count FROM products WHERE sku LIKE 'POS-BAD%' ")!.count, 0);
+});
 test("invoice import groups lines, keeps historical stock unchanged and blocks duplicate numbers", async () => {
   const csv =
     "invoice_number,invoice_date,customer_phone,sku,quantity,unit_price,discount\nHIST-1,2026-01-02,,RICE,2,500,10\nHIST-1,2026-01-02,,SOAP,1,40,0\n";
