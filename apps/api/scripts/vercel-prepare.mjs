@@ -137,6 +137,7 @@ try {
       signal: AbortSignal.timeout(120000),
     });
     const body = await response.json();
+    if (!response.ok) console.error("HTTP verification failed",path,response.status,body.code || "unknown");
     if (!response.ok)
       throw new Error(`API verification returned HTTP ${response.status}`);
     return body;
@@ -236,7 +237,7 @@ try {
           );
       }
       stage = "catalog and report verification";
-      const catalog = await call("/api/catalog/products?limit=100");
+      const catalog = await call("/api/catalog/products?limit=100", {headers});
       if (!Array.isArray(catalog.products))
         throw new Error("Catalog verification failed");
       await call("/api/admin/reports/dashboard", { headers });
@@ -256,8 +257,8 @@ try {
       throw new Error(
         "Initial import requires one-time administrator credentials",
       );
-    const catalog = await call("/api/catalog/products?limit=100");
-    if (!Array.isArray(catalog.products))
+    const catalog = await call("/api/catalog/store");
+    if (!catalog.store?.name)
       throw new Error("Catalog verification failed");
     console.log("Health, permanent database and public catalog verified");
   }
