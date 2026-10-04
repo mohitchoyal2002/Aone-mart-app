@@ -142,6 +142,7 @@ export function Button({
   icon?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
 }) {
+  const [pressed, setPressed] = useState(false);
   const bg =
     variant === "primary"
       ? C.forest
@@ -160,7 +161,9 @@ export function Button({
       accessibilityState={{ disabled: disabled || loading }}
       disabled={disabled || loading}
       onPress={onPress}
-      style={({ pressed }) => [
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
+      style={[
         {
           backgroundColor: bg,
           minHeight: 48,
