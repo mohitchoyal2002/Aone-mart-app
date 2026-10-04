@@ -135,7 +135,13 @@ def assert_input_above_keyboard(label, capture):
             continue
         frame = re.search(r"(?:mFrame|\bframe)=\[(\d+),(\d+)\]\[(\d+),(\d+)\]", block)
         if frame:
-            frames.append(list(map(int, frame.groups())))
+            coordinates = list(map(int, frame.groups()))
+            # An IME window can fill the display with a transparent upper
+            # area. Its supplied content inset identifies the visible keys.
+            content_inset = re.search(r"mGivenContentInsets=\[\d+,(\d+)\]", block)
+            if content_inset:
+                coordinates[1] += int(content_inset.group(1))
+            frames.append(coordinates)
     assert frames, "Cannot measure the native keyboard window"
     keyboard_top = min(frame[1] for frame in frames if frame[3] > frame[1])
     done = wait("Done", desc=True, seconds=10)
