@@ -52,6 +52,7 @@ import {
   dateLabel,
 } from "./ui";
 import { ProductArt, artBackground } from "./art";
+import { FormScroll } from "./keyboard-layout";
 import type {
   Category,
   Product,
@@ -395,6 +396,9 @@ export function HomeScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: C.canvas }}>
       <FlatList
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        renderScrollComponent={(props) => <FormScroll {...props} />}
         key={columns}
         data={result.error ? [] : result.data?.products || []}
         numColumns={columns}

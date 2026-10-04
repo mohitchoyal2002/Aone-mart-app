@@ -14,6 +14,7 @@ OUT = ROOT / "qa-output"
 OUT.mkdir(exist_ok=True)
 PACKAGE = "com.aonemart.app"
 checks = []
+keyboard_checks = []
 last_tree = None
 
 
@@ -80,13 +81,72 @@ def click(label, desc=False):
     time.sleep(.6)
 
 
-def fill(placeholder, value):
+def admin_tab(label):
+    for direction in [-1, 1]:
+        for _ in range(6):
+            node = find(label, desc=True)
+            if node is not None:
+                click(label, desc=True)
+                return
+            tree = last_tree
+            labels = ["Dashboard", "Manage Inventory", "Active Orders", "Customers", "Sales & Invoices",
+                      "Rewards & Coupons", "AI Summary", "Store Settings"]
+            visible_tabs = [n for n in tree.iter("node") if n.get("content-desc") in labels]
+            assert visible_tabs, "Admin navigation is not visible"
+            left, top, right, bottom = map(int, re.findall(r"\d+", visible_tabs[0].get("bounds")))
+            width = int(re.findall(r"(\d+)x\d+", adb("shell", "wm", "size").decode())[-1])
+            start, end = (width * 9 // 10, width // 10) if direction == -1 else (width // 10, width * 9 // 10)
+            adb("shell", "input", "swipe", str(start), str((top + bottom) // 2), str(end), str((top + bottom) // 2), "350")
+            time.sleep(.5)
+    raise RuntimeError("Cannot reach admin tab: " + label)
+
+
+def keyboard_visible():
+    state = adb("shell", "dumpsys", "input_method").decode(errors="replace")
+    return any(flag in state for flag in ["mInputShown=true", "isInputViewShown=true", "mIsInputViewShown=true"])
+
+
+def dismiss_keyboard():
+    if keyboard_visible():
+        click("Done", desc=True)
+        time.sleep(.5)
+        assert not keyboard_visible(), "Keyboard Done control did not dismiss the keyboard"
+
+
+def fill(placeholder, value, keep_keyboard=False):
     click(placeholder)
     adb("shell", "input", "text", value.replace(" ", "%s"))
-    ime = adb("shell", "dumpsys", "input_method").decode(errors="replace")
-    if "mInputShown=true" in ime or "isInputViewShown=true" in ime:
-        adb("shell", "input", "keyevent", "4")
+    if not keep_keyboard:
+        dismiss_keyboard()
     time.sleep(.5)
+
+
+def assert_input_above_keyboard(label, capture):
+    time.sleep(1)
+    assert keyboard_visible(), f"Software keyboard is not open for {label}"
+    node = wait(label, desc=True, seconds=12)
+    assert node.get("focused") == "true", f"{label} is not the focused input"
+    bounds = list(map(int, re.findall(r"\d+", node.get("bounds"))))
+    windows = adb("shell", "dumpsys", "window", "windows").decode(errors="replace")
+    (OUT / f"keyboard-{capture}.txt").write_text(windows)
+    frames = []
+    for block in re.split(r"(?=Window #\d+ Window\{)", windows):
+        if not re.search(r"Window #\d+ Window\{[^\n]*InputMethod", block.splitlines()[0] if block else ""):
+            continue
+        frame = re.search(r"(?:mFrame|\bframe)=\[(\d+),(\d+)\]\[(\d+),(\d+)\]", block)
+        if frame:
+            frames.append(list(map(int, frame.groups())))
+    assert frames, "Cannot measure the native keyboard window"
+    keyboard_top = min(frame[1] for frame in frames if frame[3] > frame[1])
+    done = wait("Done", desc=True, seconds=10)
+    toolbar_bounds = list(map(int, re.findall(r"\d+", done.get("bounds"))))
+    assert bounds[3] <= toolbar_bounds[1], f"{label} is covered by the keyboard toolbar: {bounds}, {toolbar_bounds}"
+    assert toolbar_bounds[3] <= keyboard_top + 3, f"Keyboard toolbar is below the IME: {toolbar_bounds}, {keyboard_top}"
+    assert bounds[1] >= 0 and bounds[3] - bounds[1] >= 50, f"{label} is clipped"
+    keyboard_checks.append({"field": label, "bounds": bounds, "keyboard_top": keyboard_top,
+                            "toolbar_bounds": toolbar_bounds, "capture": capture})
+    screenshot(capture)
+    passed("Focused input remains above open keyboard: " + label)
 
 
 def screenshot(name):
@@ -144,22 +204,38 @@ try:
     passed("Native primary button has an accessible touch height")
     screenshot("01-connection")
     passed("Native app launches with connection screen")
-    fill("https://api.yourmart.com", "http://127.0.0.1:4000")
+    fill("https://api.yourmart.com", "http://127.0.0.1:4000", keep_keyboard=True)
+    assert_input_above_keyboard("Mart service address", "keyboard-01-connection")
+    dismiss_keyboard()
     click("Connect & continue")
     wait("Welcome back")
     screenshot("02-login")
     click("Sign up")
     wait("Hello, neighbour")
-    fill("What should we call you", "QA Shopper")
-    fill("10-digit mobile number", "9876543210")
-    fill("At least 8 characters", "Qa-Shopper-2026-Only")
+    fill("What should we call you", "QA Shopper", keep_keyboard=True)
+    assert_input_above_keyboard("Your name", "keyboard-02-signup-name")
+    click("Next", desc=True)
+    assert_input_above_keyboard("Mobile number", "keyboard-03-signup-phone")
+    adb("shell", "input", "text", "9876543210")
+    click("Next", desc=True)
+    assert_input_above_keyboard("Password", "keyboard-04-signup-password")
+    adb("shell", "input", "text", "Qa-Shopper-2026-Only")
+    dismiss_keyboard()
     click("Create account")
     wait("Home", desc=True)
     screenshot("03-customer-home")
     passed("Customer signup and native product grid")
+    click("Search rice, milk, essentials...", desc=True)
+    assert_input_above_keyboard("Search rice, milk, essentials...", "keyboard-05-home-search")
+    assert find("Home", desc=True) is None, "Customer navigation still consumes typing space"
+    dismiss_keyboard()
+    wait("Home", desc=True)
     click("Add Basmati Rice to cart", desc=True)
     click("Cart", desc=True)
     wait("Your basket")
+    fill("Anything we should know?", "Please pack carefully", keep_keyboard=True)
+    assert_input_above_keyboard("A note for the mart (optional)", "keyboard-06-cart-note")
+    dismiss_keyboard()
     click("Place pickup order")
     wait("Order placed")
     click("View my order")
@@ -190,6 +266,11 @@ try:
     click("Profile", desc=True)
     wait("Your corner")
     screenshot("06-profile")
+    click("Change password")
+    click("New password", desc=True)
+    assert_input_above_keyboard("New password", "keyboard-07-profile-password")
+    dismiss_keyboard()
+    click("Close", desc=True)
     click("Log out")
     wait("Welcome back")
     click("Admin", desc=False)
@@ -198,6 +279,48 @@ try:
     click("Open admin workspace")
     wait("Manage Inventory")
     passed("Separate native admin login")
+    admin_tab("Manage Inventory")
+    wait("Manage inventory", sensitive=True)
+    click("Add product")
+    wait("Add a product")
+    click("Low-stock threshold", desc=True)
+    assert_input_above_keyboard("Low-stock threshold", "keyboard-08-inventory-numeric")
+    click("Next", desc=True)
+    assert_input_above_keyboard("Pack size / unit", "keyboard-09-inventory-next")
+    dismiss_keyboard()
+    click("Close", desc=True)
+    admin_tab("Customers")
+    wait("Customers & team")
+    click("Create account")
+    click("Initial password", desc=True)
+    assert_input_above_keyboard("Initial password", "keyboard-10-admin-account")
+    dismiss_keyboard()
+    click("Close", desc=True)
+    admin_tab("Rewards & Coupons")
+    wait("Rewards & coupons", sensitive=True)
+    click("Create coupon")
+    click("Uses per customer", desc=True)
+    assert_input_above_keyboard("Uses per customer", "keyboard-11-coupon-numeric")
+    dismiss_keyboard()
+    click("Close", desc=True)
+    admin_tab("Store Settings")
+    wait("Store settings")
+    click("Pickup instructions", desc=True)
+    assert_input_above_keyboard("Pickup instructions", "keyboard-11-settings-multiline")
+    dismiss_keyboard()
+    click("Points earned per full", desc=False)
+    assert_input_above_keyboard("Points earned per full ₹100 after pickup", "keyboard-12-settings-numeric")
+    dismiss_keyboard()
+    admin_tab("AI Summary")
+    wait("AI summary", sensitive=True)
+    click("Ask anything about your mart", desc=True)
+    adb("shell", "input", "text", "Show%sstock%ssummary")
+    assert_input_above_keyboard("Ask anything about your mart", "keyboard-13-ai-composer")
+    send = wait("Send to AI assistant", desc=True)
+    send_bounds = list(map(int, re.findall(r"\d+", send.get("bounds"))))
+    assert send.get("enabled") == "true" and send_bounds[3] <= keyboard_checks[-1]["toolbar_bounds"][1], "AI send action is covered"
+    dismiss_keyboard()
+    admin_tab("Dashboard")
     adb("shell", "wm", "size", "1600x1000")
     adb("shell", "wm", "density", "160")
     time.sleep(2)
@@ -217,7 +340,9 @@ try:
         passed("Native admin screen: " + title)
     reports = api("/api/admin/reports/dashboard", token=token)
     (OUT / "smoke.json").write_text(json.dumps({"passed": checks, "order": {"number": order["number"], "status": picked["status"]},
-                                               "dashboard": reports, "notifications_enabled": False}, indent=2))
+                                               "dashboard": reports, "notifications_enabled": False,
+                                               "android_api": adb("shell", "getprop", "ro.build.version.sdk").decode().strip(),
+                                               "keyboard_checks": keyboard_checks}, indent=2))
     print("Native Android smoke test passed.", flush=True)
 except Exception:
     try:

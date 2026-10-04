@@ -4,12 +4,12 @@ import {
   ScrollView,
   TextInput,
   Pressable,
-  KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
   Switch,
   Alert,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import {
   IndianRupee,
   Boxes,
@@ -260,7 +260,9 @@ export function AiScreen() {
   };
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior="padding"
+      automaticOffset
+      keyboardVerticalOffset={42}
       style={{ flex: 1, backgroundColor: C.canvas }}
     >
       <View style={{ padding: 22, gap: 15 }}>
@@ -286,6 +288,7 @@ export function AiScreen() {
       <ScrollView
         ref={scroll}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         style={{ flex: 1 }}
         contentContainerStyle={{
           paddingHorizontal: 22,
@@ -408,7 +411,9 @@ export function AiScreen() {
           }}
         >
           <TextInput
+            accessibilityLabel="Ask anything about your mart"
             multiline
+            textAlignVertical="top"
             placeholder="Ask anything about your mart..."
             placeholderTextColor={C.muted}
             value={input}

@@ -1,11 +1,12 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   View,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
+  Keyboard,
+  TextInput,
   Pressable,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { FormScroll } from "./keyboard-layout";
 import {
   Eye,
   EyeOff,
@@ -21,11 +22,14 @@ import { Brand, C, T, Input, Button, Chip, Notice } from "./ui";
 import { ProductArt } from "./art";
 import type { Role, Session } from "./types";
 export function ConnectionScreen() {
+  const insets = useSafeAreaInsets();
   const { setConnected } = useAuth();
   const [url, setUrl] = useState(api.baseUrl || ""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const connect = async () => {
+    if (busy || !url.trim()) return;
+    Keyboard.dismiss();
     setBusy(true);
     setError("");
     try {
@@ -41,11 +45,11 @@ export function ConnectionScreen() {
     }
   };
   return (
-    <ScrollView
-      keyboardShouldPersistTaps="handled"
+    <FormScroll
       style={{ flex: 1, backgroundColor: C.canvas }}
       contentContainerStyle={{
         padding: 26,
+        paddingBottom: 26 + insets.bottom,
         flexGrow: 1,
         justifyContent: "center",
         width: "100%",
@@ -85,6 +89,8 @@ export function ConnectionScreen() {
         onChangeText={setUrl}
         autoCapitalize="none"
         keyboardType="url"
+        returnKeyType="go"
+        onSubmitEditing={() => void connect()}
       />
       {error !== "" && (
         <View style={{ marginBottom: 16 }}>
@@ -95,6 +101,7 @@ export function ConnectionScreen() {
         title="Connect & continue"
         onPress={connect}
         loading={busy}
+        disabled={!url.trim()}
         icon={<ArrowRight size={17} color={C.white} />}
       />
       <T
@@ -104,10 +111,19 @@ export function ConnectionScreen() {
       >
         Your cart and orders connect directly to the mart’s own service.
       </T>
-    </ScrollView>
+    </FormScroll>
   );
 }
 export function AuthScreen() {
+  const insets = useSafeAreaInsets();
+  const nameRef = useRef<TextInput>(null);
+  const phoneRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
+  const [fieldErrors, setFieldErrors] = useState<{
+    name?: string;
+    phone?: string;
+    password?: string;
+  }>({});
   const { setSession, setConnected } = useAuth();
   const [role, setRole] = useState<Role>("customer"),
     [signup, setSignup] = useState(false),
@@ -118,19 +134,25 @@ export function AuthScreen() {
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const submit = async () => {
+    if (busy) return;
     setError("");
+    setFieldErrors({});
     if (signup && name.trim().length < 2) {
-      setError("Enter your name.");
+      setFieldErrors({ name: "Enter your name." });
+      nameRef.current?.focus();
       return;
     }
     if (!/^[6-9]\d{9}$/.test(phone.replaceAll(" ", ""))) {
-      setError("Enter your 10-digit mobile number.");
+      setFieldErrors({ phone: "Enter your 10-digit mobile number." });
+      phoneRef.current?.focus();
       return;
     }
     if (password.length < 8) {
-      setError("Password needs at least 8 characters.");
+      setFieldErrors({ password: "Password needs at least 8 characters." });
+      passwordRef.current?.focus();
       return;
     }
+    Keyboard.dismiss();
     setBusy(true);
     try {
       const session = await api.post<Session>(
@@ -147,14 +169,11 @@ export function AuthScreen() {
     }
   };
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    <FormScroll
       style={{ flex: 1, backgroundColor: C.canvas }}
-    >
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
         contentContainerStyle={{
           padding: 24,
+          paddingBottom: 24 + insets.bottom,
           flexGrow: 1,
           width: "100%",
           maxWidth: 560,
@@ -204,9 +223,11 @@ export function AuthScreen() {
             label="Customer"
             selected={role === "customer"}
             onPress={() => {
+              Keyboard.dismiss();
               setRole("customer");
               setSignup(false);
               setError("");
+              setFieldErrors({});
             }}
             icon={
               <ShoppingBag
@@ -219,9 +240,11 @@ export function AuthScreen() {
             label="Admin"
             selected={role === "admin"}
             onPress={() => {
+              Keyboard.dismiss();
               setRole("admin");
               setSignup(false);
               setError("");
+              setFieldErrors({});
             }}
             icon={
               <ShieldCheck
@@ -247,31 +270,54 @@ export function AuthScreen() {
         </T>
         {signup && (
           <Input
+            ref={nameRef}
             label="Your name"
+            error={fieldErrors.name}
             value={name}
-            onChangeText={setName}
+            onChangeText={(value) => {
+              setName(value);
+              setFieldErrors((current) => ({ ...current, name: undefined }));
+            }}
             placeholder="What should we call you?"
             autoCapitalize="words"
             autoComplete="name"
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => phoneRef.current?.focus()}
           />
         )}
         <Input
+          ref={phoneRef}
           label="Mobile number"
+          error={fieldErrors.phone}
           value={phone}
-          onChangeText={setPhone}
+          onChangeText={(value) => {
+            setPhone(value.replace(/[^0-9]/g, ""));
+            setFieldErrors((current) => ({ ...current, phone: undefined }));
+          }}
           placeholder="10-digit mobile number"
           keyboardType="phone-pad"
           autoComplete="tel"
           maxLength={10}
+          returnKeyType="next"
+          submitBehavior="submit"
+          onSubmitEditing={() => passwordRef.current?.focus()}
         />
         <Input
+          ref={passwordRef}
           label="Password"
+          error={fieldErrors.password}
           value={password}
-          onChangeText={setPassword}
+          onChangeText={(value) => {
+            setPassword(value);
+            setFieldErrors((current) => ({ ...current, password: undefined }));
+          }}
           placeholder="At least 8 characters"
           autoCapitalize="none"
           autoComplete={signup ? "new-password" : "current-password"}
           secureTextEntry={!visible}
+          returnKeyType="go"
+          onSubmitEditing={() => void submit()}
           right={
             <Pressable
               accessibilityLabel={visible ? "Hide password" : "Show password"}
@@ -306,8 +352,10 @@ export function AuthScreen() {
         {role === "customer" ? (
           <Pressable
             onPress={() => {
+              Keyboard.dismiss();
               setSignup(!signup);
               setError("");
+              setFieldErrors({});
             }}
             style={{ paddingVertical: 23, alignItems: "center" }}
           >
@@ -332,14 +380,16 @@ export function AuthScreen() {
         )}
         <View style={{ flex: 1, minHeight: 24 }} />
         <Pressable
-          onPress={() => setConnected(false)}
+          onPress={() => {
+            Keyboard.dismiss();
+            setConnected(false);
+          }}
           style={{ paddingVertical: 12, alignSelf: "center" }}
         >
           <T size={11} color={C.muted}>
             Change mart connection
           </T>
         </Pressable>
-      </ScrollView>
-    </KeyboardAvoidingView>
+    </FormScroll>
   );
 }

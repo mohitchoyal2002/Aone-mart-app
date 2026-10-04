@@ -1,11 +1,5 @@
 name: Android Native Smoke
 on:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/android-ui.yml"
-      - "scripts/android-smoke.py"
-      - "scripts/download-apk-artifact.py"
   workflow_run:
     workflows: [Android APK]
     types: [completed]
@@ -26,7 +20,15 @@ jobs:
   smoke:
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - api: 29
+            target: default
+          - api: 36
+            target: google_apis
     steps:
       - uses: actions/checkout@v7
         with:
@@ -66,23 +68,24 @@ jobs:
       - name: Exercise native Android app
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 29
-          target: default
+          api-level: ${{ matrix.api }}
+          target: ${{ matrix.target }}
           arch: x86_64
           profile: pixel_6
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -accel on -memory 2048
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -accel on -memory 3072
           script: python3 scripts/android-smoke.py
       - name: Save native test evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Android-native-test-evidence
+          name: Android-native-test-evidence-API-${{ matrix.api }}
           path: |
             qa-output/*.png
             qa-output/*.xml
             qa-output/smoke.json
             qa-output/adb-logcat.txt
             qa-output/api-log.txt
+            qa-output/keyboard-*.txt
           if-no-files-found: ignore
           retention-days: 14

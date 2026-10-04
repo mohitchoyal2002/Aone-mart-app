@@ -3,6 +3,8 @@ import React from "react";
 import { View, Text, Pressable, ActivityIndicator } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import { KeyboardProvider } from "react-native-keyboard-controller";
+import { KeyboardTools } from "./keyboard-layout";
 import { useFonts } from "expo-font";
 import { AuthProvider, CartProvider } from "./state";
 import { C } from "./ui";
@@ -67,6 +69,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <AppErrorBoundary>
       <SafeAreaProvider>
+        <KeyboardProvider
+          statusBarTranslucent
+          navigationBarTranslucent
+          preserveEdgeToEdge
+        >
         <StatusBar style="dark" />
         <SafeAreaView
           edges={["top", "left", "right"]}
@@ -88,6 +95,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </AuthProvider>
           )}
         </SafeAreaView>
+          <KeyboardTools />
+        </KeyboardProvider>
       </SafeAreaProvider>
     </AppErrorBoundary>
   );

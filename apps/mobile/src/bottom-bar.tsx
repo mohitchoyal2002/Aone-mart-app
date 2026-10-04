@@ -2,6 +2,7 @@ import React from "react";
 import { View, Pressable } from "react-native";
 import { Tabs } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useKeyboardState } from "react-native-keyboard-controller";
 import {
   House,
   ShoppingBag,
@@ -20,8 +21,10 @@ const items = {
   profile: { label: "Profile", icon: UserRound },
 };
 export function BottomBar({ state, navigation }: TabBarProps) {
+  const keyboardVisible = useKeyboardState((state) => state.isVisible);
   const insets = useSafeAreaInsets(),
     { count } = useCart();
+  if (keyboardVisible) return null;
   return (
     <View
       style={{

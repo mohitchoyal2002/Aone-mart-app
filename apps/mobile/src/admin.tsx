@@ -1,5 +1,7 @@
 import React from "react";
-import { View, ScrollView, Pressable, useWindowDimensions } from "react-native";
+import { View, ScrollView, Pressable, Keyboard, useWindowDimensions } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useKeyboardState } from "react-native-keyboard-controller";
 import {
   LayoutDashboard,
   Boxes,
@@ -26,6 +28,8 @@ const tabs = [
   { key: "settings", label: "Store Settings", icon: Settings },
 ];
 export function AdminLayout() {
+  const insets = useSafeAreaInsets();
+  const keyboardVisible = useKeyboardState((state) => state.isVisible);
   const { user, logout } = useAuth(),
     { width } = useWindowDimensions();
   const tab = usePathname().split("/").pop() || "dashboard";
@@ -37,7 +41,11 @@ export function AdminLayout() {
     return (
       <Pressable
         key={t.key}
-        onPress={() => router.navigate(`/(admin)/${t.key}`)}
+        onPress={() => {
+          Keyboard.dismiss();
+          router.navigate(`/(admin)/${t.key}`);
+        }}
+        accessibilityLabel={t.label}
         accessibilityRole="tab"
         accessibilityState={{ selected }}
         style={{
@@ -69,6 +77,7 @@ export function AdminLayout() {
         flex: 1,
         flexDirection: wide ? "row" : "column",
         backgroundColor: C.canvas,
+        paddingBottom: insets.bottom,
       }}
     >
       {wide ? (
@@ -99,6 +108,7 @@ export function AdminLayout() {
             </T>
           </View>
           <ScrollView
+            keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ gap: 6 }}
           >
@@ -169,13 +179,14 @@ export function AdminLayout() {
               </T>
             </View>
           </View>
-          <ScrollView
+          {!keyboardVisible && <ScrollView
             horizontal
+            keyboardShouldPersistTaps="handled"
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ gap: 7 }}
           >
             {nav}
-          </ScrollView>
+          </ScrollView>}
         </View>
       )}
       <View style={{ flex: 1 }} key={tab}>

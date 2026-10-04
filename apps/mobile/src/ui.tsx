@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { forwardRef, useState } from "react";
 import {
   Text,
   View,
@@ -6,9 +6,7 @@ import {
   TextInput,
   ActivityIndicator,
   Modal,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
+  Keyboard,
   StyleSheet,
   type TextInputProps,
   type ViewStyle,
@@ -24,6 +22,8 @@ import {
   Check,
 } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { KeyboardAvoidingView, useKeyboardState } from "react-native-keyboard-controller";
+import { FormScroll, KeyboardTools } from "./keyboard-layout";
 export const C = {
   ink: "#162B25",
   forest: "#1E5C43",
@@ -160,7 +160,10 @@ export function Button({
       accessibilityLabel={title}
       accessibilityState={{ disabled: disabled || loading }}
       disabled={disabled || loading}
-      onPress={onPress}
+      onPress={() => {
+        Keyboard.dismiss();
+        onPress();
+      }}
       onPressIn={() => setPressed(true)}
       onPressOut={() => setPressed(false)}
       style={[
@@ -185,16 +188,17 @@ export function Button({
     </Pressable>
   );
 }
-export function Input({
+export const Input = forwardRef<TextInput, TextInputProps & {
+  label?: string;
+  error?: string;
+  right?: React.ReactNode;
+}>(function Input({
   label,
   error,
   right,
   ...props
-}: TextInputProps & {
-  label?: string;
-  error?: string;
-  right?: React.ReactNode;
-}) {
+}, ref) {
+  const [focused, setFocused] = useState(false);
   return (
     <View className="mb-[15px] gap-[7px]">
       {label && (
@@ -207,15 +211,28 @@ export function Input({
           flexDirection: "row",
           alignItems: "center",
           borderWidth: 1,
-          borderColor: error ? C.red : C.line,
+          borderColor: error ? C.red : focused ? C.forest : C.line,
           borderRadius: 15,
           backgroundColor: C.white,
         }}
       >
         <TextInput
+          ref={ref}
+          accessibilityLabel={label || props.placeholder}
           placeholderTextColor="#A2AAA2"
           autoCorrect={false}
+          autoCapitalize={props.secureTextEntry ? "none" : undefined}
+          returnKeyType={props.multiline ? undefined : "done"}
+          onSubmitEditing={props.multiline ? undefined : Keyboard.dismiss}
           {...props}
+          onFocus={(e) => {
+            setFocused(true);
+            props.onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setFocused(false);
+            props.onBlur?.(e);
+          }}
           style={[
             {
               flex: 1,
@@ -237,7 +254,7 @@ export function Input({
       )}
     </View>
   );
-}
+});
 export function SearchInput({
   value,
   onChangeText,
@@ -264,6 +281,10 @@ export function SearchInput({
       <Search size={19} color={C.muted} />
       <TextInput
         accessibilityLabel={placeholder}
+        autoCorrect={false}
+        autoCapitalize="none"
+        returnKeyType="search"
+        onSubmitEditing={Keyboard.dismiss}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
@@ -487,15 +508,24 @@ export function Sheet({
   children: React.ReactNode;
 }) {
   const insets = useSafeAreaInsets();
+  const keyboardHeight = useKeyboardState((state) => state.height);
+  const close = () => {
+    Keyboard.dismiss();
+    onClose();
+  };
   return (
     <Modal
       visible={visible}
       transparent
+      statusBarTranslucent
+      navigationBarTranslucent
       animationType="slide"
-      onRequestClose={onClose}
+      onRequestClose={close}
     >
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior="padding"
+        automaticOffset
+        keyboardVerticalOffset={42}
         style={{
           flex: 1,
           justifyContent: "flex-end",
@@ -503,7 +533,7 @@ export function Sheet({
         }}
       >
         <Pressable
-          onPress={onClose}
+          onPress={close}
           style={StyleSheet.absoluteFill}
           accessibilityLabel="Close dialog"
         />
@@ -542,20 +572,22 @@ export function Sheet({
             </T>
             <Pressable
               accessibilityLabel="Close"
-              onPress={onClose}
+              onPress={close}
               hitSlop={15}
             >
               <X size={22} color={C.muted} />
             </Pressable>
           </View>
-          <ScrollView
-            keyboardShouldPersistTaps="handled"
+          <FormScroll
+            // The surrounding view already resizes above the keyboard.
+            extraKeyboardSpace={-keyboardHeight}
             contentContainerStyle={{ paddingHorizontal: 22, paddingBottom: 24 }}
           >
             {children}
-          </ScrollView>
+          </FormScroll>
         </View>
       </KeyboardAvoidingView>
+      <KeyboardTools />
     </Modal>
   );
 }
@@ -577,7 +609,12 @@ export function Select({
         {label}
       </T>
       <Pressable
-        onPress={() => setOpen(true)}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        onPress={() => {
+          Keyboard.dismiss();
+          setOpen(true);
+        }}
         style={{
           backgroundColor: C.white,
           borderWidth: 1,
@@ -627,9 +664,8 @@ export function Page({
   refreshing?: boolean;
 }) {
   return (
-    <ScrollView
+    <FormScroll
       style={{ flex: 1, backgroundColor: C.canvas }}
-      keyboardShouldPersistTaps="handled"
       refreshControl={
         refresh ? (
           <RefreshControl
@@ -649,7 +685,7 @@ export function Page({
       }}
     >
       {children}
-    </ScrollView>
+    </FormScroll>
   );
 }
 const statusColors: Record<string, [string, string]> = {
