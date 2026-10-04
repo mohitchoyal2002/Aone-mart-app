@@ -78,7 +78,7 @@ The JavaScript export and prebuild are compilation preparation, not an APK insta
 | Native notification tap from killed app | Requires the above compiled-device test. Routing code is implemented but has not been exercised on a device. |
 | PDF/image invoice extraction against real mart invoices | Extraction and mandatory preview/review code are present; only deterministic CSV imports were integration-tested. Test actual scans, correct missing SKUs/dates using CSV. |
 | Docker image execution | Docker runtime unavailable; Dockerfile supplied for deployment. |
-| Public backend deployment | Deployment is requested, but the connected Render workspace is suspended for billing. A compatible active host or VPS access is required; no public URL has been deployed. |
+| Public backend deployment | Vercel deployment is requested. The connected workspace returns HTTP 403 and requires renewed workspace authorization. An external durable database and serverless adaptation are still needed for Vercel. No public API URL has been deployed. |
 | Actual mart details/catalog | The uploaded real CSV is supported and imported separately. The Google share URL was inaccessible; configure verified address and store details. |
 | Real money/payment processing | Checkout is pay-at-mart pickup. No payment gateway integration was requested or implemented. |
 

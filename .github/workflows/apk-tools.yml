@@ -13,7 +13,21 @@ jobs:
     steps:
       - name: Prepare official Android tools
         run: |
-          sdkmanager "build-tools;36.0.0"
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$RUNNER_TEMP/android-sdk}}"
+          sdk_manager="$sdk_root/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$sdk_manager" ]; then
+            curl --fail --location --retry 3 https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip -o "$RUNNER_TEMP/android-commandline.zip"
+            unzip -q "$RUNNER_TEMP/android-commandline.zip" -d "$RUNNER_TEMP/android-commandline"
+            mkdir -p "$sdk_root/cmdline-tools"
+            mv "$RUNNER_TEMP/android-commandline/cmdline-tools" "$sdk_root/cmdline-tools/latest"
+          fi
+          export ANDROID_HOME="$sdk_root"
+          export ANDROID_SDK_ROOT="$sdk_root"
+          python3 - "$sdk_manager" <<'PY'
+          import subprocess, sys
+          subprocess.run([sys.argv[1], '--licenses'], input='y\n' * 100, text=True, check=True, stdout=subprocess.DEVNULL)
+          PY
+          "$sdk_manager" "build-tools;36.0.0"
           mkdir -p tools/lib
           cp "$ANDROID_HOME/build-tools/36.0.0/apksigner" tools/
           cp "$ANDROID_HOME/build-tools/36.0.0/zipalign" tools/
