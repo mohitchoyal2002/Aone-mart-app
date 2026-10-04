@@ -102,14 +102,22 @@ def admin_tab(label):
 
 
 def keyboard_visible():
-    state = adb("shell", "dumpsys", "input_method").decode(errors="replace")
-    return any(flag in state for flag in ["mInputShown=true", "isInputViewShown=true", "mIsInputViewShown=true"])
+    # input_method includes historical client states after dismissal. Inspect
+    # the current IME window, which matches what is actually on screen.
+    windows = adb("shell", "dumpsys", "window", "windows").decode(errors="replace")
+    return any(
+        re.search(r"Window #\d+ Window\{[^\n]*InputMethod", block.splitlines()[0] if block else "")
+        and re.search(r"^\s*isVisible=true\s*$", block, re.MULTILINE)
+        for block in re.split(r"(?=Window #\d+ Window\{)", windows)
+    )
 
 
 def dismiss_keyboard():
     if keyboard_visible():
         click("Done", desc=True)
-        time.sleep(.5)
+        deadline = time.monotonic() + 5
+        while keyboard_visible() and time.monotonic() < deadline:
+            time.sleep(.25)
         assert not keyboard_visible(), "Keyboard Done control did not dismiss the keyboard"
 
 
@@ -145,7 +153,8 @@ def assert_input_above_keyboard(label, capture):
     assert frames, "Cannot measure the native keyboard window"
     keyboard_top = min(frame[1] for frame in frames if frame[3] > frame[1])
     done = wait("Done", desc=True, seconds=10)
-    toolbar_bounds = list(map(int, re.findall(r"\d+", done.get("bounds"))))
+    toolbar = next(n for n in last_tree.iter("node") if n.get("resource-id", "").split("/")[-1] == "keyboard.toolbar")
+    toolbar_bounds = list(map(int, re.findall(r"\d+", toolbar.get("bounds"))))
     assert bounds[3] <= toolbar_bounds[1], f"{label} is covered by the keyboard toolbar: {bounds}, {toolbar_bounds}"
     assert toolbar_bounds[3] <= keyboard_top + 3, f"Keyboard toolbar is below the IME: {toolbar_bounds}, {keyboard_top}"
     assert bounds[1] >= 0 and bounds[3] - bounds[1] >= 50, f"{label} is clipped"
@@ -354,6 +363,7 @@ except Exception:
     try:
         dump()
         screenshot("failure")
+        (OUT / "keyboard-failure-window.txt").write_bytes(adb("shell", "dumpsys", "window", "windows"))
     except Exception:
         pass
     raise
