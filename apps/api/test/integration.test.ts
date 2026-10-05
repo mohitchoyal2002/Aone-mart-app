@@ -1172,6 +1172,15 @@ test("banner upload validates decoded images and enforces admin permissions", as
     .field("altText", "Local offers")
     .attach("file", Buffer.from("not an image"), "fake.jpg");
   assert.equal(bad.status, 422);
+  assert.match(bad.body.error, /Cannot read this banner/);
+  const oversized = await request(app)
+    .post("/api/admin/settings/banners")
+    .set(auth())
+    .field("title", "Offers")
+    .field("altText", "Local offers")
+    .attach("file", Buffer.alloc(1024 * 1024 + 1), "large.jpg");
+  assert.equal(oversized.status, 413);
+  assert.match(oversized.body.error, /banner image.*1 MB/);
   assert.equal((await row("SELECT count(*) n FROM store_banners"))!.n, 0);
 });
 

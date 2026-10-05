@@ -79,7 +79,7 @@ app.use((_req, res) =>
 app.use(
   (
     error: unknown,
-    _req: express.Request,
+    req: express.Request,
     res: express.Response,
     _next: express.NextFunction,
   ) => {
@@ -104,7 +104,9 @@ app.use(
     }
     if (error instanceof multer.MulterError) {
       res.status(413).json({
-        error: `Upload one file, no larger than ${config.serverless ? 4 : 5} MB.`,
+        error: req.path.startsWith("/api/admin/settings/banners")
+          ? "Upload one banner image, no larger than 1 MB."
+          : `Upload one file, no larger than ${config.serverless ? 4 : 5} MB.`,
         code: "UPLOAD_LIMIT",
       });
       return;
