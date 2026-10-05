@@ -469,8 +469,18 @@ try:
         # fallback on Android versions that have no installed photo picker.
         if find("Show roots", desc=True) is not None:
             click("Show roots", desc=True)
-            click("Downloads")
-            click("aone-qa-banner.png", exact=True)
+            # The current folder heading can also say Downloads. Select the
+            # drawer item, not the heading behind the open drawer.
+            tree = dump()
+            roots = tree.find(".//node[@resource-id='com.android.documentsui:id/roots_list']")
+            assert roots is not None, "DocumentsUI roots drawer is not open"
+            downloads = next((n for n in roots.iter("node") if n.get("text") == "Downloads"), None)
+            assert downloads is not None, "DocumentsUI Downloads root is missing"
+            left, top, right, bottom = map(int, re.findall(r"\d+", downloads.get("bounds")))
+            adb("shell", "input", "tap", str((left + right) // 2), str((top + bottom) // 2))
+            time.sleep(.6)
+            # Grid cells expose filename, size and time in one description.
+            click("aone-qa-banner.png")
         else:
             deadline = time.monotonic() + 30
             photo = None
