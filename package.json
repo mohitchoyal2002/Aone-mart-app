@@ -15,6 +15,7 @@
     "android": "npm run android -w @aone/mobile",
     "seed": "npm run seed -w @aone/api",
     "test": "npm run test -w @aone/api",
+    "test:uploads": "node --test scripts/mobile-uploads.test.cjs",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "build:api": "npm run build -w @aone/api",
     "build:android": "npm run build:apk -w @aone/mobile",

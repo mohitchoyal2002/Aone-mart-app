@@ -8,6 +8,7 @@ on:
       - "package-lock.json"
       - "scripts/prepare-native-anime.cjs"
       - "scripts/native-compatibility.test.cjs"
+      - "scripts/mobile-uploads.test.cjs"
       - ".github/workflows/android-apk.yml"
   workflow_dispatch:
 permissions:
@@ -42,6 +43,7 @@ jobs:
         run: |
           npm test
           node --test scripts/native-compatibility.test.cjs
+          npm run test:uploads
           npm run typecheck
           npm run lint -w @aone/mobile
           npm run build:api

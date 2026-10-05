@@ -3,7 +3,7 @@ import multer from "multer";
 import sharp from "sharp";
 import { z } from "zod";
 import { requireAuth, adminOnly } from "./auth.js";
-import { id, fail, audit } from "./core.js";
+import { id, fail, audit, AppError } from "./core.js";
 import { row, rows, run, now, transaction } from "./db.js";
 
 export async function listBanners() {
@@ -70,7 +70,8 @@ async function image(req: Request) {
     if (bytes.length > 700 * 1024)
       fail(422, "This image is too detailed. Choose a smaller banner image.");
     return bytes;
-  } catch {
+  } catch (error) {
+    if (error instanceof AppError) throw error;
     fail(
       422,
       "Cannot read this banner. Choose a JPG, PNG or WebP image up to 1 MB.",

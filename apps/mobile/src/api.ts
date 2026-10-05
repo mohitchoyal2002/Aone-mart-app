@@ -1,6 +1,7 @@
 import * as SecureStore from "expo-secure-store";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
+import { fetch as expoFetch } from "expo/fetch";
 import type { Session } from "./types";
 export class ApiError extends Error {
   constructor(
@@ -103,10 +104,15 @@ export const api = {
     const controller = new AbortController();
     const timeout = setTimeout(
       () => controller.abort(),
-      path.includes("/ai/") || path.includes("/preview") ? 60000 : 15000,
+      isForm || path.includes("/ai/") || path.includes("/preview")
+        ? 60000
+        : 15000,
     );
     try {
-      response = await fetch(baseUrl + path, {
+      // Expo File implements Blob through native getters. RN's global fetch
+      // spreads FormData parts and loses those getters before sending them.
+      const request = isForm ? expoFetch : fetch;
+      response = await request(baseUrl + path, {
         ...options,
         headers,
         signal: controller.signal,

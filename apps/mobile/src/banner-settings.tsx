@@ -2,10 +2,10 @@ import React, { useState } from "react";
 import { View } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
-import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import { File } from "expo-file-system";
 import { Upload, ArrowUp, ArrowDown } from "lucide-react-native";
 import { api } from "./api";
+import { prepareBannerImage } from "./banner-image";
 import { AppDialog } from "./dialog-service";
 import { useLoad, useAuth, alertError } from "./state";
 import {
@@ -46,19 +46,9 @@ export function BannerSettings() {
       if (selected.canceled) return;
       setBusy(true);
       const asset = selected.assets[0];
-      const context = ImageManipulator.manipulate(asset.uri);
-      // Compress locally before upload to stay below serverless request limits.
-      if (asset.width > 1600 || asset.height > 1600)
-        context.resize(
-          asset.width >= asset.height ? { width: 1600 } : { height: 1600 },
-        );
-      const rendered = await context.renderAsync();
-      const image = await rendered.saveAsync({
-        format: SaveFormat.JPEG,
-        compress: 0.8,
-      });
+      const uri = await prepareBannerImage(asset.uri);
       setDraft({
-        uri: image.uri,
+        uri,
         title: banner?.title || "",
         altText: banner?.altText || "",
         id: banner?.id,
