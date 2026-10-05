@@ -13,7 +13,7 @@ Turso integration and created `aone-mart-db` in Mumbai. Production is live at **
 **https://aone-mart-app.vercel.app** remains available. Enter either origin
 in the Android app, without `/api`. Anonymous HTTPS health returned 200 and the
 Turso database was verified through live admin login, inventory/dashboard reads,
-Gemini chat (200) and logout revocation (401). 29 backend integration tests pass.
+Gemini chat (200) and logout revocation (401). The current backend integration suite has 35 passing checks.
 Actual inventory: 45 products, 1,315 units, 10 categories, 45 source records.
 One-time administrator and CSV setup values have been cleared from project
 configuration; subsequent builds retain the existing administrator and stock.
@@ -39,7 +39,7 @@ configuration; subsequent builds retain the existing administrator and stock.
 - Vercel uploads accept up to 4 MB, leaving space for multipart headers within
   the function body limit. Local/Docker uploads retain their 5 MB limit.
 - `api.aoneonlinemart.shop` is assigned to this Vercel project. Its HTTPS health
-  endpoint returned 200 on 5 October 2026 after deployment of commit `9ebf06e`.
+  endpoint returned 200 on 5 October 2026 after deployment of commit `c7fe992`.
   The Vercel production deployment reports the custom domain assigned with no
   alias error. Existing `app`/`admin` DNS cleanup is separate from this release.
   The root domain and `www` are outside the requested DNS changes.

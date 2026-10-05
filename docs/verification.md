@@ -1,6 +1,27 @@
-# Verification record — 4 October 2026
+# Verification record — 5 October 2026
 
-## Current UI update — 1.0.1 / code 2
+## Current release — 1.1.1 / code 7
+
+Banner upload and the premium mobile UI are merged in PRs [#1](https://github.com/mohitchoyal2002/Aone-mart-app/pull/1) and [#2](https://github.com/mohitchoyal2002/Aone-mart-app/pull/2). PR [#4](https://github.com/mohitchoyal2002/Aone-mart-app/pull/4) fixes the native video focus hook: Expo SDK 57 Router has its own navigation context, so the video must import `useIsFocused` from `expo-router`. A regression check uses the real Router context and rejects the previous import.
+
+| Check | Result and scope |
+| --- | --- |
+| Build source | `c7fe99211e59c8a04673b88816baf0127a63b9f0`; later main commits change the native test script only |
+| Android APK | [Build 37312764232](https://github.com/mohitchoyal2002/Aone-mart-app/actions/runs/37312764232) passed; package `com.aonemart.app`, version 1.1.1/code 7, min API 24, target API 36, arm64 and x86_64 |
+| Source checks | 35 API integration checks, 5 upload checks and 5 native compatibility checks passed; API/mobile TypeScript, Expo lint and API compilation passed |
+| APK integrity | Artifact ZIP digests and APK SHA-256 verified; APK is 86,473,875 bytes with SHA-256 `eb7e8cde2930070f31913d0fb2663805827d56ac4afe32f95017d49b5ba2fbe8` |
+| Signing | APK v2 signature verified; CI preview signing certificate SHA-256 `fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c`, matching the earlier CI 1.0.3/code 4 APK; not debuggable |
+| Native alignment | APK 16 KB ZIP alignment and the load-segment alignment of all 28 arm64 libraries passed |
+| Bundled media | Video is 1920×1080 at 24 fps and byte-identical to the source asset; all nine referenced product/3D PNG textures are 1024×1024 and their decoded pixels match the packaged APK |
+| Android 16 / API 36 | [Native smoke run 37316380004](https://github.com/mohitchoyal2002/Aone-mart-app/actions/runs/37316380004) passed 38 checks, including 14 keyboard checks, multiple banner uploads through the real photo picker, CSV preview/import, checkout/pickup, admin screens, Three.js meshes, Reduce Motion, cold startup and native video pause/resume/screen changes |
+| Android 10 / API 29 | First attempt failed because the focused inventory low-stock field scrolled out of view after the keyboard opened. The retry passed all 13 keyboard checks reached, inventory/account/coupon/settings dialogs and customer/admin flows (30 checks), then failed on a DocumentsUI test selector. Its captured hierarchy shows the seeded image present; the automation selected the current-folder heading behind the drawer and expected an exact filename although the grid description includes size and time. Test-only commit `29fa9b6` selects the drawer root explicitly and matches the filename within the grid description. |
+| Live backend | Vercel production deployment `dpl_3H2ZtAzDj9Q9BXt7wjmpp82Hw6eu` is ready from the APK source commit. Both `https://api.aoneonlinemart.shop/health` and `https://aone-mart-app.vercel.app/health` returned HTTP 200 with API 1.2.0 and the permanent Turso database |
+
+Native tests use isolated sample data. They do not write banners, customers, invoices or stock into the live mart database. Physical-device QA remains outstanding. Build 1.1.0/code 6 was withdrawn after its native video context failure; use 1.1.1/code 7. SwilERP automatic synchronization remains deferred.
+
+The Android 10 job in the subsequent [selector verification run 37320587631](https://github.com/mohitchoyal2002/Aone-mart-app/actions/runs/37320587631) failed before the app test started: Android SDK Manager could not unpack the emulator download (`Error on ZipFile unknown archive`). Complete Android 10 banner verification is therefore not claimed. The first attempt's intermittent modal keyboard scrolling remains a follow-up item even though the next attempt passed the inventory and other keyboard checks. Android 16's complete result above is from the same distributed APK.
+
+## Previous UI update — 1.0.1 / code 2
 
 [APK build 37183515362](https://github.com/mohitchoyal2002/Aone-mart-app/actions/runs/37183515362) succeeded from commit `c65323667419256fbf43b006b2b17eb2f8a85700`. Mobile TypeScript and Expo lint passed. [Native workflow 37184197151](https://github.com/mohitchoyal2002/Aone-mart-app/actions/runs/37184197151) passed **28 checks on API 29 and 28 on API 36**, with 14 open-keyboard field checks per platform.
 
@@ -78,7 +99,6 @@ The JavaScript export and prebuild are compilation preparation, not an APK insta
 | Native notification tap from killed app | Requires the above compiled-device test. Routing code is implemented but has not been exercised on a device. |
 | PDF/image invoice extraction against real mart invoices | Extraction and mandatory preview/review code are present; only deterministic CSV imports were integration-tested. Test actual scans, correct missing SKUs/dates using CSV. |
 | Docker image execution | Docker runtime unavailable; Dockerfile supplied for deployment. |
-| Public backend deployment | Vercel workspace authorization and GitHub project linkage succeeded. Turso integration installation is paused before acceptance of the provider and Vercel Marketplace terms. An external durable database and serverless adaptation are still needed. No verified live API URL is available. |
 | Actual mart details/catalog | The uploaded real CSV is supported and imported separately. The Google share URL was inaccessible; configure verified address and store details. |
 | Real money/payment processing | Checkout is pay-at-mart pickup. No payment gateway integration was requested or implemented. |
 
