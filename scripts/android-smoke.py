@@ -451,8 +451,10 @@ try:
             photo = None
             while time.monotonic() < deadline:
                 tree = dump()
-                photo = next((n for n in tree.iter("node") if n.get("clickable") == "true"
-                              and ("photo taken" in n.get("content-desc", "").casefold()
+                # The Android 16 Compose picker exposes photo descriptions on
+                # non-clickable child nodes; their bounds remain tappable.
+                photo = next((n for n in tree.iter("node") if
+                              ("photo taken" in n.get("content-desc", "").casefold()
                                    or "aone-qa-banner" in (n.get("text", "") + n.get("content-desc", "")))), None)
                 if photo is not None:
                     break
