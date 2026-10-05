@@ -71,10 +71,11 @@ def wait(label, desc=False, seconds=35, sensitive=False):
     raise RuntimeError(f"Native UI did not show: {label}")
 
 
-def scroll():
+def scroll(direction=1):
     size = adb("shell", "wm", "size").decode()
     width, height = map(int, re.findall(r"(\d+)x(\d+)", size)[-1])
-    adb("shell", "input", "swipe", str(width // 2), str(height * 4 // 5), str(width // 2), str(height // 4), "400")
+    start, end = (height * 4 // 5, height // 4) if direction == 1 else (height // 4, height * 4 // 5)
+    adb("shell", "input", "swipe", str(width // 2), str(start), str(width // 2), str(end), "400")
     time.sleep(.6)
 
 
@@ -133,6 +134,13 @@ def dismiss_keyboard():
 
 
 def fill(placeholder, value, keep_keyboard=False, replace=False):
+    # Populated inputs expose their label as content-desc rather than their
+    # current text. The settings form may still be scrolled to its last field.
+    if replace:
+        for _ in range(8):
+            if find(placeholder, desc=True) is not None:
+                break
+            scroll(direction=-1)
     click(placeholder)
     if replace:
         node = find(placeholder, desc=True)
