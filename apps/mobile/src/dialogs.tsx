@@ -1,5 +1,7 @@
+import { SuccessCelebration } from "./success-celebration";
+import { useMotion, ActionPressable as Pressable } from "./motion";
 import React, { useSyncExternalStore } from "react";
-import { Modal, View, Pressable } from "react-native";
+import { Modal, View } from "react-native";
 import { Check, AlertCircle, X } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { dialogStore } from "./dialog-service";
@@ -14,6 +16,7 @@ export function DialogHost() {
     dialogStore.snapshot,
   );
   const insets = useSafeAreaInsets();
+  const { reduced } = useMotion();
   const cancel = () =>
     dialogStore.close(
       dialog?.actions.find((action) => action.style === "cancel"),
@@ -27,7 +30,7 @@ export function DialogHost() {
       transparent
       statusBarTranslucent
       navigationBarTranslucent
-      animationType="fade"
+      animationType={reduced ? "none" : "fade"}
       onRequestClose={cancel}
     >
       <View
@@ -37,7 +40,7 @@ export function DialogHost() {
           padding: 24,
           paddingTop: insets.top + 24,
           paddingBottom: insets.bottom + 24,
-          backgroundColor: "rgba(14,37,30,.55)",
+          backgroundColor: "rgba(12,24,43,.55)",
         }}
       >
         {dialog && (
@@ -80,6 +83,7 @@ export function DialogHost() {
                   <X size={20} color={C.muted} />
                 </Pressable>
               </View>
+              {dialog.tone === "success" && <SuccessCelebration />}
               <View
                 style={{ flexDirection: "row", gap: 10, alignItems: "center" }}
               >

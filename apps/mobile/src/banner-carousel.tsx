@@ -1,21 +1,23 @@
+import { ActionPressable as Pressable, useMotion } from "./motion";
 import React, { useState, useRef, useEffect } from "react";
-import { View, ScrollView, Pressable, useWindowDimensions } from "react-native";
+import { View, ScrollView, useWindowDimensions } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { ChevronLeft, ChevronRight, Pause, Play } from "lucide-react-native";
 import { useIsFocused } from "expo-router";
 import { api } from "./api";
 import { C, T } from "./ui";
-import { useMotion } from "./motion";
 import { BasketScene } from "./basket-scene";
 import type { Banner } from "./types";
 
 export function BannerCarousel({
   banners = [],
   active = true,
+  reaction = 0,
 }: {
   banners?: Banner[];
   active?: boolean;
+  reaction?: number;
 }) {
   const { width, fontScale } = useWindowDimensions();
   return (
@@ -23,6 +25,7 @@ export function BannerCarousel({
       key={banners.map((b) => b.id + b.imagePath).join("|") + width}
       banners={banners}
       active={active}
+      reaction={reaction}
       width={width}
       fontScale={fontScale}
     />
@@ -31,11 +34,13 @@ export function BannerCarousel({
 function Carousel({
   banners,
   active,
+  reaction,
   width,
   fontScale,
 }: {
   banners: Banner[];
   active: boolean;
+  reaction: number;
   width: number;
   fontScale: number;
 }) {
@@ -46,16 +51,15 @@ function Carousel({
   const [index, setIndex] = useState(0),
     [paused, setPaused] = useState(false);
   const [failed, setFailed] = useState<Record<string, boolean>>({});
-  const slides = banners.length
-    ? banners.slice(0, 5)
-    : [
-        {
-          id: "default",
-          title: "Your daily basket, made better.",
-          altText: "Aone Mart neighbourhood shopping",
-          imagePath: "",
-        },
-      ];
+  const slides = [
+    ...banners.slice(0, 5),
+    {
+      id: "default",
+      title: "A little local. A lot to love.",
+      altText: "Aone Mart neighbourhood shopping",
+      imagePath: "",
+    },
+  ];
   const count = slides.length;
   const move = (next: number) => {
     const target = (next + count) % count;
@@ -122,7 +126,7 @@ function Carousel({
                     }))
                   }
                 />
-                <View style={{ padding: 15, backgroundColor: "#EDF3E2" }}>
+                <View style={{ padding: 15, backgroundColor: C.white }}>
                   <T bold size={15}>
                     {banner.title}
                   </T>
@@ -130,13 +134,13 @@ function Carousel({
               </View>
             ) : (
               <LinearGradient
-                colors={["#175542", "#276A55", "#377562"]}
+                colors={["#12223C", "#243F5E", "#215A62"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={{
-                  borderRadius: 25,
-                  padding: 21,
-                  minHeight: 208,
+                  borderRadius: 28,
+                  padding: 22,
+                  minHeight: 230,
                   overflow: "hidden",
                 }}
               >
@@ -147,22 +151,38 @@ function Carousel({
                     zIndex: 1,
                   }}
                 >
-                  <T size={12} bold color="#FFF3D9">
+                  <T
+                    size={10}
+                    bold
+                    color={C.lime}
+                    style={{ letterSpacing: 1.2 }}
+                  >
                     APNI DUKAAN. APNA BHAROSA.
                   </T>
-                  <T size={25} bold color={C.white} style={{ lineHeight: 32 }}>
+                  <T
+                    size={width < 360 ? 22 : 27}
+                    bold
+                    color={C.white}
+                    style={{
+                      lineHeight: width < 360 ? 28 : 33,
+                      letterSpacing: -0.5,
+                    }}
+                  >
                     {banner.imagePath
                       ? banner.title
-                      : "Your daily basket, made better."}
+                      : "A little local.\nA lot to love."}
                   </T>
-                  <T size={14} color="#E6F0D8" style={{ lineHeight: 21 }}>
-                    Choose your essentials. Pick up at the mart. Pay at the
-                    counter.
+                  <T size={12} color="#DCE9EF" style={{ lineHeight: 21 }}>
+                    Your everyday essentials, ready for pickup.
                   </T>
                 </View>
                 {fontScale <= 1.25 && (
-                  <View style={{ position: "absolute", right: -14, bottom: 5 }}>
+                  <View
+                    style={{ position: "absolute", right: -45, bottom: -16 }}
+                  >
                     <BasketScene
+                      width={width < 360 ? 185 : 230}
+                      reaction={reaction}
                       active={
                         active && focused && !paused && index === position
                       }
@@ -194,35 +214,41 @@ function Carousel({
           >
             <ChevronLeft color={C.forest} size={20} />
           </Pressable>
-          <View style={{ flexDirection: "row", gap: 2 }}>
-            {slides.map((b, i) => (
-              <Pressable
-                key={b.id}
-                style={{
-                  minWidth: 24,
-                  minHeight: 44,
-                  justifyContent: "center",
-                  alignItems: "center",
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={`Banner ${i + 1}: ${b.title}`}
-                accessibilityState={{ selected: i === index }}
-                onPress={() => {
-                  setPaused(true);
-                  move(i);
-                }}
-              >
-                <View
+          {count > 3 ? (
+            <T size={12} color={C.muted}>
+              {index + 1} / {count}
+            </T>
+          ) : (
+            <View style={{ flexDirection: "row", gap: 2 }}>
+              {slides.map((b, i) => (
+                <Pressable
+                  key={b.id}
                   style={{
-                    width: i === index ? 18 : 7,
-                    height: 7,
-                    borderRadius: 4,
-                    backgroundColor: i === index ? C.forest : "#AABDAA",
+                    minWidth: 24,
+                    minHeight: 44,
+                    justifyContent: "center",
+                    alignItems: "center",
                   }}
-                />
-              </Pressable>
-            ))}
-          </View>
+                  accessibilityRole="button"
+                  accessibilityLabel={`Banner ${i + 1}: ${b.title}`}
+                  accessibilityState={{ selected: i === index }}
+                  onPress={() => {
+                    setPaused(true);
+                    move(i);
+                  }}
+                >
+                  <View
+                    style={{
+                      width: i === index ? 18 : 7,
+                      height: 7,
+                      borderRadius: 4,
+                      backgroundColor: i === index ? C.forest : "#AABDAA",
+                    }}
+                  />
+                </Pressable>
+              ))}
+            </View>
+          )}
           <Pressable
             style={control}
             accessibilityRole="button"
@@ -258,22 +284,23 @@ function Carousel({
           }
           onPress={() => setPaused((v) => !v)}
           style={{
-            minHeight: 44,
-            alignSelf: "flex-start",
-            flexDirection: "row",
-            gap: 8,
+            position: "absolute",
+            right: 12,
+            top: 12,
+            width: 44,
+            height: 44,
+            borderRadius: 22,
+            backgroundColor: "rgba(255,255,255,.14)",
             alignItems: "center",
-            paddingHorizontal: 10,
+            justifyContent: "center",
+            zIndex: 2,
           }}
         >
           {paused ? (
-            <Play color={C.forest} size={15} />
+            <Play color={C.white} size={15} />
           ) : (
-            <Pause color={C.forest} size={15} />
+            <Pause color={C.white} size={15} />
           )}
-          <T size={12} color={C.forest}>
-            {paused ? "Play animation" : "Pause animation"}
-          </T>
         </Pressable>
       )}
     </View>

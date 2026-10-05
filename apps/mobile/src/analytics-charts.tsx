@@ -1,5 +1,6 @@
+import { ActionPressable as Pressable } from "./motion";
 import React, { useState } from "react";
-import { View, Pressable, ScrollView } from "react-native";
+import { View, ScrollView } from "react-native";
 import Svg, {
   Circle,
   Defs,

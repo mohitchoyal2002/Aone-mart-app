@@ -2,7 +2,7 @@ import React, { forwardRef, useContext, useState } from "react";
 import {
   Text,
   View,
-  Pressable,
+  Pressable as NativePressable,
   TextInput,
   Animated,
   Modal,
@@ -33,22 +33,31 @@ import {
   KEYBOARD_CLEARANCE,
 } from "./keyboard-layout";
 import { BrandMark, BrandLoader } from "./brand";
-import { usePressMotion, useEntrance } from "./motion";
+import {
+  usePressMotion,
+  useEntrance,
+  useMotion,
+  ActionPressable as Pressable,
+} from "./motion";
 import { LinearGradient } from "expo-linear-gradient";
-const MotionPressable = Animated.createAnimatedComponent(Pressable);
+const MotionPressable = Animated.createAnimatedComponent(NativePressable);
 export const C = {
-  ink: "#183C31",
-  forest: "#175542",
-  mint: "#E6F0D8",
-  canvas: "#FFFAF1",
-  muted: "#596C60",
-  line: "#E5EAE3",
+  ink: "#14243D",
+  forest: "#08786B",
+  mint: "#E0F5ED",
+  canvas: "#F5F7FB",
+  muted: "#617087",
+  line: "#E5EAF2",
   white: "#FFFFFF",
-  amber: "#825907",
-  red: "#A63434",
-  blue: "#3D6D9C",
-  gold: "#F4CF78",
-  lilac: "#F0EBFA",
+  amber: "#8A5715",
+  red: "#B4324C",
+  blue: "#4264C4",
+  gold: "#FFC979",
+  lilac: "#EEEAFE",
+  navy: "#14243D",
+  lime: "#D6F5A3",
+  coral: "#FF9C86",
+  subtle: "#EDF1F7",
 };
 export const F = {
   regular: "DMSans_400Regular",
@@ -145,7 +154,7 @@ export function Button({
   const motion = usePressMotion();
   const bg =
     variant === "primary"
-      ? C.forest
+      ? C.navy
       : variant === "secondary"
         ? C.mint
         : variant === "danger"
@@ -179,9 +188,9 @@ export function Button({
           alignItems: "center",
           justifyContent: "center",
           gap: 8,
-          borderRadius: 16,
+          borderRadius: 18,
           paddingHorizontal: 18,
-          minHeight: 48,
+          minHeight: 52,
           opacity: disabled ? 0.5 : pressed ? 0.8 : 1,
           overflow: "hidden",
           transform: [{ scale: motion.scale }],
@@ -192,7 +201,7 @@ export function Button({
       {variant === "primary" && (
         <LinearGradient
           pointerEvents="none"
-          colors={["#23684F", "#104838"]}
+          colors={["#263D60", "#14243D"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={StyleSheet.absoluteFill}
@@ -360,13 +369,13 @@ export function Chip({
       accessibilityState={{ selected }}
       onPress={onPress}
       style={{
-        backgroundColor: selected ? C.forest : C.white,
+        backgroundColor: selected ? C.navy : C.white,
         borderWidth: 1,
-        borderColor: selected ? C.forest : C.line,
+        borderColor: selected ? C.navy : C.line,
         paddingHorizontal: 14,
         paddingVertical: 12,
         minHeight: 48,
-        borderRadius: 13,
+        borderRadius: 16,
         flexDirection: "row",
         alignItems: "center",
         gap: 7,
@@ -393,8 +402,13 @@ export function Card({
           backgroundColor: C.white,
           borderWidth: 1,
           borderColor: C.line,
-          borderRadius: 22,
+          borderRadius: 24,
           padding: 19,
+          shadowColor: C.navy,
+          shadowOpacity: 0.035,
+          shadowRadius: 14,
+          shadowOffset: { width: 0, height: 4 },
+          elevation: 2,
         },
         style,
       ]}
@@ -454,9 +468,7 @@ export function Empty({
         gap: 11,
       }}
     >
-      <View
-        style={{ backgroundColor: "#EAF1E3", padding: 20, borderRadius: 30 }}
-      >
+      <View style={{ backgroundColor: C.mint, padding: 20, borderRadius: 30 }}>
         <ShoppingBasket size={32} color={C.forest} strokeWidth={1.5} />
       </View>
       <T size={18} bold style={{ textAlign: "center" }}>
@@ -543,6 +555,7 @@ export function Sheet({
   children: React.ReactNode;
 }) {
   const insets = useSafeAreaInsets();
+  const { reduced } = useMotion();
   const keyboardHeight = useKeyboardState((state) => state.height);
   const close = () => {
     Keyboard.dismiss();
@@ -554,7 +567,7 @@ export function Sheet({
       transparent
       statusBarTranslucent
       navigationBarTranslucent
-      animationType="slide"
+      animationType={reduced ? "none" : "slide"}
       onRequestClose={close}
     >
       <KeyboardAvoidingView
@@ -564,7 +577,7 @@ export function Sheet({
         style={{
           flex: 1,
           justifyContent: "flex-end",
-          backgroundColor: "rgba(16,36,27,.45)",
+          backgroundColor: "rgba(12,24,43,.55)",
           paddingTop: Math.max(insets.top + 12, 20),
         }}
       >

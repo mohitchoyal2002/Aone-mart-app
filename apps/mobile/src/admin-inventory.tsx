@@ -1,6 +1,7 @@
+import { ActionPressable as Pressable } from "./motion";
 import { AppDialog as Alert } from "./dialog-service";
 import React, { useState, useEffect } from "react";
-import { View, Pressable} from "react-native";
+import { View } from "react-native";
 import {
   Plus,
   Pencil,

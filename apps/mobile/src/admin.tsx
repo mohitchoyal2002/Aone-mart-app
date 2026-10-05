@@ -1,5 +1,6 @@
+import { ActionPressable as Pressable } from "./motion";
 import React from "react";
-import { View, ScrollView, Pressable, Keyboard, useWindowDimensions } from "react-native";
+import { View, ScrollView, Keyboard, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useKeyboardState } from "react-native-keyboard-controller";
 import {
@@ -55,9 +56,9 @@ export function AdminLayout() {
           paddingHorizontal: wide ? 16 : 13,
           paddingVertical: wide ? 14 : 11,
           borderRadius: 14,
-          backgroundColor: selected ? C.forest : wide ? "transparent" : C.white,
+          backgroundColor: selected ? C.navy : wide ? "transparent" : C.white,
           borderWidth: wide ? 0 : 1,
-          borderColor: selected ? C.forest : C.line,
+          borderColor: selected ? C.navy : C.line,
         }}
       >
         <Icon size={wide ? 19 : 15} color={selected ? C.mint : C.muted} />
@@ -86,7 +87,7 @@ export function AdminLayout() {
             width: 238,
             borderRightWidth: 1,
             borderColor: C.line,
-            backgroundColor: "#F1F5EC",
+            backgroundColor: C.white,
             padding: 18,
           }}
         >
@@ -95,7 +96,7 @@ export function AdminLayout() {
           </View>
           <View
             style={{
-              backgroundColor: "#E1EBCF",
+              backgroundColor: C.mint,
               alignSelf: "flex-start",
               borderRadius: 7,
               paddingHorizontal: 10,
@@ -117,7 +118,7 @@ export function AdminLayout() {
           <View
             style={{
               borderTopWidth: 1,
-              borderColor: "#DDE4D5",
+              borderColor: C.line,
               paddingTop: 18,
               marginTop: 15,
               gap: 12,
@@ -179,14 +180,16 @@ export function AdminLayout() {
               </T>
             </View>
           </View>
-          {!keyboardVisible && <ScrollView
-            horizontal
-            keyboardShouldPersistTaps="handled"
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 7 }}
-          >
-            {nav}
-          </ScrollView>}
+          {!keyboardVisible && (
+            <ScrollView
+              horizontal
+              keyboardShouldPersistTaps="handled"
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 7 }}
+            >
+              {nav}
+            </ScrollView>
+          )}
         </View>
       )}
       <View style={{ flex: 1 }} key={tab}>

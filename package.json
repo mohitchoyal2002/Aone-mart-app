@@ -19,6 +19,7 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "build:api": "npm run build -w @aone/api",
     "build:android": "npm run build:apk -w @aone/mobile",
-    "postinstall": "node scripts/prepare-native-anime.cjs"
+    "postinstall": "node scripts/prepare-native-anime.cjs",
+    "preview:ui": "node scripts/ui-preview.mjs"
   }
 }

@@ -1,5 +1,6 @@
+import { ActionPressable as Pressable, useBounce } from "./motion";
 import React from "react";
-import { View, Pressable } from "react-native";
+import { View, Animated } from "react-native";
 import { Tabs } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useKeyboardState } from "react-native-keyboard-controller";
@@ -24,15 +25,19 @@ export function BottomBar({ state, navigation }: TabBarProps) {
   const keyboardVisible = useKeyboardState((state) => state.isVisible);
   const insets = useSafeAreaInsets(),
     { count } = useCart();
+  const badgeMotion = useBounce(count);
   if (keyboardVisible) return null;
   return (
     <View
       style={{
-        backgroundColor: C.white,
-        borderTopWidth: 1,
+        backgroundColor: C.navy,
+        borderTopWidth: 0,
         borderColor: C.line,
-        paddingBottom: Math.max(insets.bottom, 8),
-        paddingTop: 9,
+        paddingBottom: 12,
+        paddingTop: 12,
+        marginHorizontal: 12,
+        borderRadius: 26,
+        marginBottom: Math.max(insets.bottom, 8),
         paddingHorizontal: 13,
         flexDirection: "row",
       }}
@@ -46,7 +51,11 @@ export function BottomBar({ state, navigation }: TabBarProps) {
           <Pressable
             key={route.key}
             accessibilityRole="tab"
-            accessibilityLabel={item.label}
+            accessibilityLabel={
+              route.name === "cart" && count > 0
+                ? `Cart, ${count} items`
+                : item.label
+            }
             accessibilityState={{ selected: focused }}
             onPress={() => {
               const event = navigation.emit({
@@ -63,13 +72,15 @@ export function BottomBar({ state, navigation }: TabBarProps) {
               gap: 5,
               paddingVertical: 7,
               borderRadius: 16,
-              backgroundColor: focused ? "#EDF3E3" : "transparent",
+              backgroundColor: focused ? "#29423D" : "transparent",
             }}
           >
-            <View>
+            <Animated.View
+              style={route.name === "cart" ? badgeMotion : undefined}
+            >
               <Icon
                 size={23}
-                color={focused ? C.forest : C.muted}
+                color={focused ? C.lime : "#B7C6D8"}
                 strokeWidth={focused ? 2 : 1.6}
               />
               {route.name === "cart" && count > 0 && (
@@ -78,7 +89,7 @@ export function BottomBar({ state, navigation }: TabBarProps) {
                     position: "absolute",
                     right: -8,
                     top: -7,
-                    backgroundColor: C.forest,
+                    backgroundColor: C.coral,
                     borderRadius: 8,
                     minWidth: 16,
                     height: 16,
@@ -87,13 +98,13 @@ export function BottomBar({ state, navigation }: TabBarProps) {
                     justifyContent: "center",
                   }}
                 >
-                  <T size={8} bold color={C.white}>
+                  <T size={9} bold color={C.navy}>
                     {count > 99 ? "99+" : count}
                   </T>
                 </View>
               )}
-            </View>
-            <T size={10} bold={focused} color={focused ? C.forest : C.muted}>
+            </Animated.View>
+            <T size={10} bold={focused} color={focused ? C.lime : "#B7C6D8"}>
               {item.label}
             </T>
           </Pressable>

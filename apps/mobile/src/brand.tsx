@@ -117,7 +117,7 @@ export function Startup({
   return (
     <Animated.View style={[StyleSheet.absoluteFill, { opacity, zIndex: 20 }]}>
       <LinearGradient
-        colors={["#FFFBF2", "#EAF3DE", "#E8F0F7"]}
+        colors={["#14243D", "#25445D", "#08786B"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={{
@@ -131,7 +131,7 @@ export function Startup({
           style={{
             width: 200,
             height: 200,
-            backgroundColor: "rgba(255,255,255,.65)",
+            backgroundColor: "rgba(255,255,255,.96)",
             borderRadius: 100,
             alignItems: "center",
             justifyContent: "center",
@@ -143,18 +143,18 @@ export function Startup({
           style={{
             fontSize: 34,
             fontFamily: "DMSans_700Bold",
-            color: "#143E32",
+            color: "#FFFFFF",
             marginTop: 25,
           }}
         >
           aone mart
         </Text>
-        <Text style={{ fontSize: 17, color: "#536858", marginTop: 9 }}>
+        <Text style={{ fontSize: 17, color: "#D6F5A3", marginTop: 9 }}>
           Apni dukaan. Apna bharosa.
         </Text>
         <Text
           accessibilityLiveRegion="polite"
-          style={{ fontSize: 13, color: "#536858", marginTop: 28 }}
+          style={{ fontSize: 13, color: "#D6F5A3", marginTop: 28 }}
         >
           {ready ? "Your mart is ready" : "Opening your neighbourhood mart…"}
         </Text>

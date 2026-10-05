@@ -1,15 +1,10 @@
+import { ActionPressable as Pressable } from "./motion";
+import { LinearGradient } from "expo-linear-gradient";
 import { BrandLoader } from "./brand";
 import { BannerSettings } from "./banner-settings";
 import { AppDialog as Alert } from "./dialog-service";
 import React, { useState, useRef } from "react";
-import {
-  View,
-  ScrollView,
-  TextInput,
-  Pressable,
-  Platform,
-  Switch,
-} from "react-native";
+import { View, ScrollView, TextInput, Platform, Switch } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import {
   IndianRupee,
@@ -67,17 +62,22 @@ export function DashboardScreen({
       .reduce((s, o) => s + o.count, 0) || 0;
   return (
     <Page refresh={result.refresh} refreshing={result.loading && !!d}>
-      <View>
-        <T size={11} color={C.muted} style={{ letterSpacing: 1.4 }}>
+      <LinearGradient
+        colors={[C.navy, "#284963"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ padding: 24, borderRadius: 26 }}
+      >
+        <T size={10} color={C.lime} style={{ letterSpacing: 1.6 }}>
           YOUR STORE AT A GLANCE
         </T>
-        <T bold size={30} style={{ marginTop: 9 }}>
+        <T bold size={30} color={C.white} style={{ marginTop: 9 }}>
           Hello, {user?.name.split(" ")[0]}.
         </T>
-        <T size={13} color={C.muted} style={{ marginTop: 7 }}>
+        <T size={13} color="#C9D8E8" style={{ marginTop: 7, lineHeight: 20 }}>
           A good day to keep your neighbourhood stocked.
         </T>
-      </View>
+      </LinearGradient>
       <RangeBar range={range} onChange={setRange} />
       {result.error ? (
         <ErrorView error={result.error} retry={result.refresh} />

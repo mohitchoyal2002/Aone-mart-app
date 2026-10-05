@@ -1,20 +1,48 @@
 import React, { useRef, useState, useEffect } from "react";
 import { View } from "react-native";
+import { Image } from "expo-image";
 import { GLView, type ExpoWebGLRenderingContext } from "expo-gl";
 import Renderer from "expo-three/build/Renderer";
 import * as THREE from "three";
 import { animate, engine } from "animejs";
-import { BrandMark } from "./brand";
+import { createGroceryScene } from "./grocery-models";
 import { useMotion } from "./motion";
 
 // Run the object animation engine from the scene's capped native frame loop.
-// No browser DOM, remote models, texture downloads or continuous background loop.
+// Bundled CC0 food models render without remote textures or a browser DOM.
 engine.useDefaultMainLoop = false;
 
-export function BasketScene({ active = true }: { active?: boolean }) {
+export function BasketScene({
+  active = true,
+  reaction = 0,
+  width = 230,
+  height = 245,
+}: {
+  active?: boolean;
+  reaction?: number;
+  width?: number;
+  height?: number;
+}) {
   const { enabled } = useMotion();
   const [failed, setFailed] = useState(false);
   const cleanup = useRef<() => void>(() => {});
+  const sceneGroup = useRef<THREE.Group | null>(null);
+  const tapAnimation = useRef<ReturnType<typeof animate> | null>(null);
+  useEffect(() => {
+    if (!enabled || !active || !sceneGroup.current) return;
+    tapAnimation.current?.cancel();
+    sceneGroup.current.scale.setScalar(1);
+    tapAnimation.current = animate(sceneGroup.current.scale, {
+      x: [1, 1.07, 1],
+      y: [1, 1.07, 1],
+      z: [1, 1.07, 1],
+      duration: 440,
+      ease: "out(3)",
+    });
+    return () => {
+      tapAnimation.current?.cancel();
+    };
+  }, [reaction, enabled, active]);
   useEffect(() => () => cleanup.current(), []);
   const start = (gl: ExpoWebGLRenderingContext) => {
     cleanup.current();
@@ -30,6 +58,8 @@ export function BasketScene({ active = true }: { active?: boolean }) {
       cancelAnimationFrame(frame);
       rotation?.cancel();
       float?.cancel();
+      tapAnimation.current?.cancel();
+      sceneGroup.current = null;
       scene.traverse((object) => {
         if (object instanceof THREE.Mesh) {
           object.geometry.dispose();
@@ -48,106 +78,50 @@ export function BasketScene({ active = true }: { active?: boolean }) {
         width: gl.drawingBufferWidth,
         height: gl.drawingBufferHeight,
         alpha: true,
-        antialias: false,
+        antialias: true,
         pixelRatio: 1,
       });
       renderer.setClearColor(0x000000, 0);
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.15;
       const camera = new THREE.PerspectiveCamera(
         40,
         gl.drawingBufferWidth / gl.drawingBufferHeight,
         0.1,
         50,
       );
-      camera.position.set(3.1, 2.5, 5.6);
-      camera.lookAt(0, 0.4, 0);
-      scene.add(new THREE.AmbientLight(0xffffff, 2));
-      const light = new THREE.DirectionalLight(0xfff5ce, 3);
+      camera.position.set(2.2, 1.8, 4.6);
+      camera.lookAt(0.15, 0.35, 0);
+      scene.add(new THREE.HemisphereLight(0xe0f5ed, 0x223556, 2.6));
+      const light = new THREE.DirectionalLight(0xffe5d0, 3.5);
       light.position.set(4, 5, 3);
       scene.add(light);
-      const basket = new THREE.Group();
+      const basket = createGroceryScene();
+      sceneGroup.current = basket;
       scene.add(basket);
-      const gold = new THREE.MeshStandardMaterial({
-        color: 0xf4cf78,
-        roughness: 0.65,
-      });
-      const cream = new THREE.MeshStandardMaterial({
-        color: 0xfff4d6,
-        roughness: 0.8,
-      });
-      const mint = new THREE.MeshStandardMaterial({
-        color: 0x81b987,
-        roughness: 0.8,
-      });
-      const bar = (
-        w: number,
-        h: number,
-        d: number,
-        x: number,
-        y: number,
-        z: number,
-        material: THREE.Material = gold,
-      ) => {
-        const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
-        mesh.position.set(x, y, z);
-        basket.add(mesh);
-        return mesh;
-      };
-      bar(2, 0.14, 1.2, 0, -0.4, 0);
-      bar(2.3, 0.16, 1.45, 0, 0.65, 0);
-      for (const x of [-0.9, -0.45, 0, 0.45, 0.9]) {
-        bar(0.11, 0.92, 0.1, x, 0.13, 0.62);
-        bar(0.11, 0.92, 0.1, x, 0.13, -0.62);
-      }
-      for (const z of [-0.5, 0, 0.5]) {
-        bar(0.1, 0.95, 0.12, -1, 0.13, z);
-        bar(0.1, 0.95, 0.12, 1, 0.13, z);
-      }
-      const handle = new THREE.Mesh(
-        new THREE.TorusGeometry(0.85, 0.075, 7, 22, Math.PI),
-        cream,
-      );
-      handle.position.set(0, 0.65, 0);
-      basket.add(handle);
-      const apple = new THREE.Mesh(
-        new THREE.SphereGeometry(0.37, 14, 10),
-        new THREE.MeshStandardMaterial({ color: 0xe97357, roughness: 0.7 }),
-      );
-      apple.position.set(-0.53, 0.8, 0.1);
-      basket.add(apple);
-      const orange = new THREE.Mesh(
-        new THREE.SphereGeometry(0.3, 14, 10),
-        new THREE.MeshStandardMaterial({ color: 0xf3b747, roughness: 0.8 }),
-      );
-      orange.position.set(0.52, 0.78, 0.22);
-      basket.add(orange);
-      const milk = bar(0.47, 1.05, 0.45, 0.05, 1, -0.3, cream);
-      milk.rotation.z = -0.14;
-      bar(0.49, 0.24, 0.47, 0.05, 1.06, -0.3, mint);
-      const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.23, 10, 8), mint);
-      leaf.scale.set(1.5, 0.3, 0.7);
-      leaf.position.set(-0.38, 1.14, 0.05);
-      leaf.rotation.z = 0.5;
-      basket.add(leaf);
+      const rim = new THREE.DirectionalLight(0xa8f6e1, 2);
+      rim.position.set(-4, 3, -2);
+      scene.add(rim);
       const shadow = new THREE.Mesh(
         new THREE.CircleGeometry(1.25, 24),
         new THREE.MeshBasicMaterial({
-          color: 0x062c25,
+          color: 0x061121,
           transparent: true,
           opacity: 0.16,
         }),
       );
       shadow.rotation.x = -Math.PI / 2;
-      shadow.position.y = -0.57;
+      shadow.position.y = -0.7;
       scene.add(shadow);
       rotation = animate(basket.rotation, {
-        y: [-0.28, 0.32],
+        y: [-0.2, 0.25],
         duration: 3800,
         alternate: true,
         loop: true,
         ease: "inOutSine",
       });
       float = animate(basket.position, {
-        y: [0, 0.12],
+        y: [0, 0.09],
         duration: 2400,
         alternate: true,
         loop: true,
@@ -166,7 +140,9 @@ export function BasketScene({ active = true }: { active?: boolean }) {
           gl.endFrameEXP();
           if (!reported && renderer!.info.render.calls > 0) {
             reported = true;
-            console.info("Aone Mart basket scene rendered (Three.js + Anime.js)");
+            console.info(
+              "Aone Mart basket scene rendered (Three.js + Anime.js)",
+            );
           }
         } catch (error) {
           console.warn(
@@ -196,16 +172,20 @@ export function BasketScene({ active = true }: { active?: boolean }) {
       pointerEvents="none"
       accessible={false}
       importantForAccessibility="no-hide-descendants"
-      style={{ width: 160, height: 175 }}
+      style={{ width, height }}
     >
       {!enabled || !active || failed ? (
         <View
           style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
         >
-          <BrandMark size={145} />
+          <Image
+            source={require("../assets/models/grocery-poster.png")}
+            contentFit="contain"
+            style={{ width, height }}
+          />
         </View>
       ) : (
-        <GLView style={{ width: 160, height: 175 }} onContextCreate={start} />
+        <GLView style={{ width, height }} onContextCreate={start} />
       )}
     </View>
   );
