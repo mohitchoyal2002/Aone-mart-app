@@ -296,6 +296,29 @@ try:
     wait("Home", desc=True, seconds=60)
     screenshot("03d-restored-home")
     passed("Cold startup restores the customer session without a recovery error")
+    # Scroll to the bundled film, exercise native player teardown and leave
+    # the screen. The web preview cannot validate native player lifetime.
+    for _ in range(14):
+        if find("Pause market video", desc=True) is not None:
+            break
+        scroll()
+    click("Pause market video", desc=True)
+    wait("Play market video", desc=True)
+    click("Play market video", desc=True)
+    time.sleep(2)
+    wait("Pause market video", desc=True)
+    screenshot("03e-native-market-video")
+    click("Cart", desc=True)
+    wait("Your basket")
+    click("Home", desc=True)
+    wait("Home", desc=True)
+    for _ in range(14):
+        if find("Search rice, milk, essentials...", desc=True) is not None:
+            break
+        scroll(direction=-1)
+    native_log = adb("logcat", "-d", "-s", "ReactNativeJS").decode(errors="replace")
+    assert "Aone Mart render failed" not in native_log, "Native video play/pause or screen teardown triggered recovery"
+    passed("Bundled native video plays, pauses and survives screen changes")
     click("Search rice, milk, essentials...", desc=True)
     assert_input_above_keyboard("Search rice, milk, essentials...", "keyboard-05-home-search")
     assert find("Home", desc=True) is None, "Customer navigation still consumes typing space"
