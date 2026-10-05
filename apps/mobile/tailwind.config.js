@@ -4,12 +4,12 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        ink: "#162B25",
-        forest: "#1E5C43",
-        mint: "#DDECBC",
-        canvas: "#F7F8F2",
-        muted: "#7B8980",
-        line: "#E5EAE3",
+        ink: "#14243D",
+        forest: "#08786B",
+        mint: "#E0F5ED",
+        canvas: "#F5F7FB",
+        muted: "#617087",
+        line: "#E5EAF2",
       },
       fontFamily: {
         sans: ["DMSans_400Regular"],

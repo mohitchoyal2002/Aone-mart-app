@@ -1,3 +1,4 @@
+import { useMotion } from "../motion";
 import React from "react";
 import { Stack } from "expo-router";
 import { AppShell } from "../app-shell";
@@ -5,6 +6,7 @@ import { useAuth } from "../state";
 import { C, Loading } from "../ui";
 
 function RootNavigator() {
+  const { reduced } = useMotion();
   const { user, connected, loading } = useAuth();
   if (loading) return <Loading />;
   return (
@@ -12,7 +14,7 @@ function RootNavigator() {
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: C.canvas },
-        animation: "fade_from_bottom",
+        animation: reduced ? "none" : "fade_from_bottom",
       }}
     >
       <Stack.Protected guard={!connected || !user}>

@@ -1,10 +1,10 @@
+import { ActionPressable as Pressable, Reveal } from "./motion";
 import { AppDialog as Alert } from "./dialog-service";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   FlatList,
   ScrollView,
-  Pressable,
   useWindowDimensions,
   RefreshControl,
   Switch,
@@ -14,12 +14,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useLocalSearchParams } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { BannerCarousel } from "./banner-carousel";
-import { BrandMark } from "./brand";
+import { MarketStory } from "./market-story";
+import { ProductTile } from "./product-tile";
+import { Stepper } from "./quantity-control";
 import {
   Bell,
   MapPin,
-  Plus,
-  Minus,
   ArrowRight,
   ShoppingBag,
   Ticket,
@@ -63,55 +63,7 @@ import type {
   Coupon,
   Session,
 } from "./types";
-export function Stepper({
-  quantity,
-  onChange,
-  compact = false,
-}: {
-  quantity: number;
-  onChange: (n: number) => void;
-  compact?: boolean;
-}) {
-  return (
-    <View
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        backgroundColor: C.forest,
-        borderRadius: 11,
-        height: 48,
-      }}
-    >
-      <Pressable
-        accessibilityLabel="Remove one"
-        onPress={() => onChange(quantity - 1)}
-        style={{
-          minWidth: 44,
-          alignItems: "center",
-          paddingHorizontal: compact ? 10 : 12,
-          paddingVertical: 15,
-        }}
-      >
-        <Minus size={14} color={C.white} />
-      </Pressable>
-      <T bold size={12} color={C.white}>
-        {quantity}
-      </T>
-      <Pressable
-        accessibilityLabel="Add one"
-        onPress={() => onChange(quantity + 1)}
-        style={{
-          minWidth: 44,
-          alignItems: "center",
-          paddingHorizontal: compact ? 10 : 12,
-          paddingVertical: 15,
-        }}
-      >
-        <Plus size={14} color={C.white} />
-      </Pressable>
-    </View>
-  );
-}
+export { Stepper } from "./quantity-control";
 function NotificationsSheet({
   open,
   onClose,
@@ -176,13 +128,29 @@ function NotificationsSheet({
 export function HomeScreen() {
   const { user, epoch } = useAuth(),
     cart = useCart(),
-    { width } = useWindowDimensions();
+    { width, height, fontScale } = useWindowDimensions();
   const [search, setSearch] = useState(""),
     [debounced, setDebounced] = useState(""),
     [category, setCategory] = useState(""),
     [offset, setOffset] = useState(0),
     [notifications, setNotifications] = useState(false),
-    [heroVisible, setHeroVisible] = useState(true);
+    [heroVisible, setHeroVisible] = useState(true),
+    [storyVisible, setStoryVisible] = useState(false);
+  const media = useRef({ banner: { y: 0, height: 0 } });
+  const contentHeight = useRef(0);
+  const viewport = useRef({ y: 0, height: height - 140 });
+  const checkMedia = () => {
+    const intersects = (r: { y: number; height: number }) =>
+      r.height > 0 &&
+      r.y + r.height > viewport.current.y + 20 &&
+      r.y < viewport.current.y + viewport.current.height - 20;
+    setHeroVisible(intersects(media.current.banner));
+    setStoryVisible(
+      contentHeight.current > 0 &&
+        viewport.current.y + viewport.current.height >
+          contentHeight.current - (cart.count ? 360 : 270),
+    );
+  };
   useEffect(() => {
     const t = setTimeout(() => {
       setDebounced(search);
@@ -204,11 +172,12 @@ export function HomeScreen() {
       ),
     [category, debounced, offset, epoch],
   );
-  const columns = width >= 1000 ? 4 : width >= 650 ? 3 : 2;
+  const columns =
+    width >= 1000 ? 4 : width >= 650 ? 3 : fontScale > 1.3 ? 1 : 2;
   const contentWidth = Math.min(width, 1100),
     cardWidth = (contentWidth - 44 - (columns - 1) * 12) / columns;
   const header = (
-    <View style={{ gap: 21, marginBottom: 20 }}>
+    <View style={{ gap: 20, marginBottom: 20 }}>
       <View
         style={{
           flexDirection: "row",
@@ -216,9 +185,9 @@ export function HomeScreen() {
           justifyContent: "space-between",
         }}
       >
-        <View>
-          <T size={11} color={C.muted}>
-            PICKUP AT YOUR NEIGHBOURHOOD MART
+        <View style={{ flex: 1, paddingRight: 12 }}>
+          <T size={width < 360 ? 9 : 11} color={C.muted}>
+            YOUR NEIGHBOURHOOD, ON DEMAND
           </T>
           <View
             style={{
@@ -252,11 +221,11 @@ export function HomeScreen() {
         </Pressable>
       </View>
       <View>
-        <T size={26} bold>
-          Good things, {user?.name.split(" ")[0]}.
+        <T size={32} bold style={{ letterSpacing: -1 }}>
+          Hello, {user?.name.split(" ")[0] || "neighbour"}.
         </T>
         <T size={13} color={C.muted} style={{ marginTop: 5 }}>
-          A fresh start to your everyday shopping.
+          A little local goodness for your every day.
         </T>
       </View>
       <SearchInput
@@ -271,33 +240,56 @@ export function HomeScreen() {
         <Notice text="The mart is currently not accepting new orders. You can still browse." />
       )}
       {!debounced && !category && (
-        <BannerCarousel
-          banners={meta.data?.store.banners}
-          active={heroVisible}
-        />
+        <View
+          onLayout={(e) => {
+            media.current.banner = {
+              y: e.nativeEvent.layout.y + 22,
+              height: e.nativeEvent.layout.height,
+            };
+            checkMedia();
+          }}
+        >
+          <BannerCarousel
+            banners={meta.data?.store.banners}
+            active={heroVisible}
+            reaction={cart.count}
+          />
+        </View>
       )}
-      <LinearGradient
-        colors={["#FFF1CF", "#EBF4E4", "#EAEFFB"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+      <View
         style={{
-          borderRadius: 18,
-          padding: 16,
           flexDirection: "row",
+          gap: 10,
+          padding: 14,
+          backgroundColor: C.white,
+          borderRadius: 19,
+          borderWidth: 1,
+          borderColor: C.line,
           alignItems: "center",
-          gap: 12,
         }}
       >
-        <BrandMark size={42} />
+        <View
+          style={{
+            width: 40,
+            height: 40,
+            backgroundColor: C.mint,
+            borderRadius: 13,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <StoreIcon size={20} color={C.forest} />
+        </View>
         <View style={{ flex: 1 }}>
-          <T bold size={15}>
-            Shop nearby. Pick up easily.
+          <T bold size={13}>
+            Your basket. Your local mart.
           </T>
-          <T size={13} color={C.muted} style={{ lineHeight: 20, marginTop: 4 }}>
-            Reserve your basket here. Pay at the mart.
+          <T size={12} color={C.muted} style={{ marginTop: 3 }}>
+            Reserve here · Pick up & pay at the counter
           </T>
         </View>
-      </LinearGradient>
+        <ArrowRight size={17} color={C.forest} />
+      </View>
       <View>
         <View
           style={{
@@ -321,6 +313,9 @@ export function HomeScreen() {
         >
           <Chip
             label="All"
+            icon={
+              <ShoppingBag size={17} color={!category ? C.lime : C.forest} />
+            }
             selected={!category}
             onPress={() => {
               setCategory("");
@@ -331,6 +326,27 @@ export function HomeScreen() {
             <Chip
               key={c.id}
               label={c.name}
+              icon={
+                <ProductArt
+                  artwork={
+                    /dairy|milk/i.test(c.name)
+                      ? "milk"
+                      : /produce|fruit|vegetable/i.test(c.name)
+                        ? "fruit"
+                        : /bread|bakery/i.test(c.name)
+                          ? "bread"
+                          : /snack/i.test(c.name)
+                            ? "snack"
+                            : /beverage|tea/i.test(c.name)
+                              ? "tea"
+                              : /personal|daily needs/i.test(c.name)
+                                ? "soap"
+                                : "bag"
+                  }
+                  width={30}
+                  height={30}
+                />
+              }
               selected={category === c.id}
               onPress={() => {
                 setCategory(c.id);
@@ -366,11 +382,20 @@ export function HomeScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: C.canvas }}>
       <FlatList
+        onContentSizeChange={(_, measuredHeight) => {
+          contentHeight.current = measuredHeight;
+          checkMedia();
+        }}
+        onLayout={(event) => {
+          viewport.current.height = event.nativeEvent.layout.height;
+          checkMedia();
+        }}
         onScroll={(event) => {
-          const visible = event.nativeEvent.contentOffset.y < 500;
-          setHeroVisible((current) =>
-            current === visible ? current : visible,
-          );
+          viewport.current = {
+            y: event.nativeEvent.contentOffset.y,
+            height: event.nativeEvent.layoutMeasurement.height,
+          };
+          checkMedia();
         }}
         scrollEventThrottle={120}
         keyboardShouldPersistTaps="handled"
@@ -380,13 +405,13 @@ export function HomeScreen() {
         data={result.error ? [] : result.data?.products || []}
         numColumns={columns}
         keyExtractor={(p) => p.id}
-        columnWrapperStyle={{ gap: 12 }}
+        columnWrapperStyle={columns > 1 ? { gap: 12 } : undefined}
         contentContainerStyle={{
           padding: 22,
           width: "100%",
           maxWidth: 1100,
           alignSelf: "center",
-          paddingBottom: 24,
+          paddingBottom: cart.count ? 105 : 24,
         }}
         ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
         ListHeaderComponent={header}
@@ -400,131 +425,9 @@ export function HomeScreen() {
             tintColor={C.forest}
           />
         }
-        renderItem={({ item: p }) => {
-          const quantity =
-            cart.lines.find((l) => l.product.id === p.id)?.quantity || 0;
-          return (
-            <View
-              style={{
-                width: cardWidth,
-                backgroundColor: C.white,
-                borderRadius: 21,
-                padding: 10,
-                borderWidth: 1,
-                borderColor: C.line,
-              }}
-            >
-              <View
-                style={{
-                  backgroundColor:
-                    artBackground[p.artwork] || artBackground.bag,
-                  borderRadius: 15,
-                  height: 128,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <ProductArt
-                  key={p.imageUrl}
-                  artwork={p.artwork}
-                  imageUrl={p.imageUrl}
-                  width={Math.min(cardWidth - 24, 150)}
-                  height={122}
-                />
-                {p.mrp > p.price && (
-                  <View
-                    style={{
-                      position: "absolute",
-                      left: 7,
-                      top: 7,
-                      backgroundColor: C.white,
-                      borderRadius: 6,
-                      padding: 5,
-                    }}
-                  >
-                    <T bold size={8} color={C.forest}>
-                      {Math.round((1 - p.price / p.mrp) * 100)}% OFF
-                    </T>
-                  </View>
-                )}
-              </View>
-              <View style={{ padding: 3, paddingTop: 12, gap: 4 }}>
-                <T
-                  bold
-                  size={15}
-                  numberOfLines={2}
-                  style={{ minHeight: 42, lineHeight: 21 }}
-                >
-                  {p.name}
-                </T>
-                <T size={13} color={C.muted}>
-                  {p.unit}
-                </T>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    marginTop: 8,
-                    gap: 8,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <View>
-                    <T bold size={17}>
-                      {money(p.price)}
-                    </T>
-                    {p.mrp > p.price && (
-                      <T
-                        size={10}
-                        color={C.muted}
-                        style={{ textDecorationLine: "line-through" }}
-                      >
-                        {money(p.mrp)}
-                      </T>
-                    )}
-                  </View>
-                  {quantity > 0 ? (
-                    <Stepper
-                      compact
-                      quantity={quantity}
-                      onChange={(q) =>
-                        q > quantity ? cart.add(p) : cart.change(p.id, q)
-                      }
-                    />
-                  ) : (
-                    <Pressable
-                      disabled={!p.available}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Add ${p.name} to cart`}
-                      onPress={() => cart.add(p)}
-                      style={{
-                        backgroundColor: p.available ? C.forest : C.line,
-                        minWidth: 68,
-                        height: 48,
-                        borderRadius: 11,
-                        justifyContent: "center",
-                        alignItems: "center",
-                        flexDirection: "row",
-                        gap: 4,
-                      }}
-                    >
-                      <Plus size={15} color={C.white} />
-                      <T size={13} bold color={C.white}>
-                        Add
-                      </T>
-                    </Pressable>
-                  )}
-                </View>
-                {!p.available && (
-                  <T size={9} color={C.red}>
-                    Out of stock
-                  </T>
-                )}
-              </View>
-            </View>
-          );
-        }}
+        renderItem={({ item, index }) => (
+          <ProductTile product={item} width={cardWidth} index={index} />
+        )}
         ListEmptyComponent={
           result.loading ? (
             <Loading />
@@ -537,6 +440,7 @@ export function HomeScreen() {
         }
         ListFooterComponent={
           <View style={{ marginTop: 22, gap: 18 }}>
+            {!debounced && !category && <MarketStory active={storyVisible} />}
             {(result.data?.total || 0) > 30 && (
               <View
                 style={{
@@ -575,6 +479,65 @@ export function HomeScreen() {
           </View>
         }
       />
+      {!!cart.count && (
+        <Reveal
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: 14,
+            paddingHorizontal: 22,
+            alignItems: "center",
+          }}
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`View basket, ${cart.count} items, ${money(cart.subtotal)}`}
+            onPress={() => router.navigate("/(customer)/cart")}
+            style={{
+              width: "100%",
+              maxWidth: 1056,
+              padding: 16,
+              borderRadius: 22,
+              backgroundColor: C.navy,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 11,
+              shadowColor: C.navy,
+              shadowOpacity: 0.2,
+              shadowRadius: 16,
+              elevation: 8,
+            }}
+          >
+            <View
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 13,
+                backgroundColor: "rgba(214,245,163,.14)",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <ShoppingBag size={21} color={C.lime} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <T bold color={C.white} size={14}>
+                {cart.count} {cart.count === 1 ? "item" : "items"} in your
+                basket
+              </T>
+              <T size={12} color="#BFCBDB" style={{ marginTop: 3 }}>
+                {money(cart.subtotal)}
+                {width >= 360 ? " · Pay at pickup" : ""}
+              </T>
+            </View>
+            <T bold size={12} color={C.lime}>
+              View basket
+            </T>
+            <ArrowRight size={17} color={C.lime} />
+          </Pressable>
+        </Reveal>
+      )}
       <NotificationsSheet
         open={notifications}
         onClose={() => setNotifications(false)}
@@ -674,6 +637,7 @@ export function CartScreen() {
             onPress: () => router.navigate("/(customer)/orders"),
           },
         ],
+        { tone: "success" },
       );
     } catch (e) {
       alertError(e);
@@ -703,10 +667,31 @@ export function CartScreen() {
   const q = quote.data?.quote;
   return (
     <Page>
-      <SectionTitle
-        title="Your basket"
-        caption={`${cart.count} items · A little local goodness`}
-      />
+      <LinearGradient
+        colors={[C.navy, "#274363"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{
+          borderRadius: 26,
+          padding: 23,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 16,
+        }}
+      >
+        <View style={{ flex: 1 }}>
+          <T bold size={10} color={C.lime} style={{ letterSpacing: 1.5 }}>
+            GOOD THINGS, TOGETHER
+          </T>
+          <T size={29} bold color={C.white} style={{ marginTop: 8 }}>
+            Your basket
+          </T>
+          <T color="#CFDCE9" size={13} style={{ marginTop: 7 }}>
+            {cart.count} items · Ready for a little local goodness
+          </T>
+        </View>
+        <ShoppingBag size={43} color={C.lime} strokeWidth={1.3} />
+      </LinearGradient>
       <Card style={{ padding: 15 }}>
         {cart.lines.map((line, i) => (
           <View
@@ -1330,7 +1315,7 @@ export function ProfileScreen() {
         />
       </Card>
       <LinearGradient
-        colors={["#1E5C43", "#386C48"]}
+        colors={[C.navy, "#274D60"]}
         style={{ borderRadius: 22, padding: 23 }}
       >
         <View style={{ flexDirection: "row", justifyContent: "space-between" }}>

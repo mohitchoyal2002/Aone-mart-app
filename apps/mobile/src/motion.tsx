@@ -1,5 +1,18 @@
-import React, { useEffect, useState, createContext, useContext } from "react";
-import { AccessibilityInfo, AppState, Animated, Easing } from "react-native";
+import React, {
+  useEffect,
+  useRef,
+  useState,
+  createContext,
+  useContext,
+} from "react";
+import {
+  AccessibilityInfo,
+  AppState,
+  Animated,
+  Easing,
+  Pressable,
+  StyleSheet,
+} from "react-native";
 
 const MotionContext = createContext({
   reduced: true,
@@ -42,6 +55,12 @@ export const useMotion = () => useContext(MotionContext);
 export function usePressMotion() {
   const [scale] = useState(() => new Animated.Value(1));
   const { enabled } = useMotion();
+  useEffect(() => {
+    if (!enabled) {
+      scale.stopAnimation();
+      scale.setValue(1);
+    }
+  }, [enabled, scale]);
   const press = (value: number) =>
     Animated.spring(scale, {
       toValue: enabled ? value : 1,
@@ -52,19 +71,20 @@ export function usePressMotion() {
   return { scale, press };
 }
 
-export function useEntrance() {
+export function useEntrance(delay = 0) {
   const [progress] = useState(() => new Animated.Value(0));
   const { reduced } = useMotion();
   useEffect(() => {
     const animation = Animated.timing(progress, {
       toValue: 1,
       duration: reduced ? 0 : 320,
+      delay: reduced ? 0 : delay,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     });
     animation.start();
     return () => animation.stop();
-  }, [progress, reduced]);
+  }, [progress, reduced, delay]);
   return {
     opacity: progress,
     transform: [
@@ -76,4 +96,88 @@ export function useEntrance() {
       },
     ],
   };
+}
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+export function ActionPressable({
+  style,
+  onPressIn,
+  onPressOut,
+  ...props
+}: React.ComponentProps<typeof Pressable>) {
+  const motion = usePressMotion();
+  const [pressed, setPressed] = useState(false);
+  const resolved = StyleSheet.flatten(
+    typeof style === "function" ? style({ pressed }) : style,
+  );
+  return (
+    <AnimatedPressable
+      {...props}
+      onPressIn={(event) => {
+        setPressed(true);
+        motion.press(0.96);
+        onPressIn?.(event);
+      }}
+      onPressOut={(event) => {
+        setPressed(false);
+        motion.press(1);
+        onPressOut?.(event);
+      }}
+      style={[
+        resolved,
+        {
+          transform: [
+            ...(Array.isArray(resolved?.transform) ? resolved.transform : []),
+            { scale: motion.scale },
+          ],
+        },
+      ]}
+    />
+  );
+}
+
+export function Reveal({
+  children,
+  delay = 0,
+  style,
+}: {
+  children: React.ReactNode;
+  delay?: number;
+  style?: React.ComponentProps<typeof Animated.View>["style"];
+}) {
+  const entrance = useEntrance(delay);
+  return <Animated.View style={[entrance, style]}>{children}</Animated.View>;
+}
+
+export function useBounce(value: unknown) {
+  const { enabled } = useMotion();
+  const [scale] = useState(() => new Animated.Value(1));
+  const previous = useRef(value);
+  useEffect(() => {
+    if (previous.current === value) return;
+    previous.current = value;
+    if (!enabled) {
+      scale.setValue(1);
+      return;
+    }
+    const animation = Animated.sequence([
+      Animated.timing(scale, {
+        toValue: 1.1,
+        duration: 110,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scale, {
+        toValue: 1,
+        friction: 5,
+        tension: 160,
+        useNativeDriver: true,
+      }),
+    ]);
+    animation.start();
+    return () => {
+      animation.stop();
+      scale.setValue(1);
+    };
+  }, [value, enabled, scale]);
+  return { transform: [{ scale }] };
 }

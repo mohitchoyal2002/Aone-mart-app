@@ -33,10 +33,10 @@ export const FormScroll = forwardRef<
 });
 
 const palette = {
-  primary: "#1E5C43",
+  primary: "#08786B",
   disabled: "#A2AAA2",
   background: "#FFFFFF",
-  ripple: "#DDECBC",
+  ripple: "#E0F5ED",
 };
 
 export function KeyboardTools() {

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { View, ScrollView } from "react-native";
+import { Reveal } from "./motion";
 import { LinearGradient } from "expo-linear-gradient";
 import { C, T, Input, Chip, Sheet, Button, Card } from "./ui";
 export function rangeDays(days = 30) {
@@ -101,54 +102,51 @@ export function StatGrid({
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
       {items.map((i, index) => (
-        <Card
+        <Reveal
           key={i.title}
-          style={{
-            flexGrow: 1,
-            flexBasis: "46%",
-            minWidth: 135,
-            padding: 17,
-            overflow: "hidden",
-          }}
+          delay={index * 50}
+          style={{ flexGrow: 1, flexBasis: "46%", minWidth: 135 }}
         >
-          <LinearGradient
-            pointerEvents="none"
-            colors={
-              index % 4 === 0
-                ? ["#FFFFFF", "#EAF3DA"]
-                : index % 4 === 1
-                  ? ["#FFFFFF", "#E8F0FA"]
-                  : index % 4 === 2
-                    ? ["#FFFFFF", "#FFF1D3"]
-                    : ["#FFFFFF", "#F0EBFA"]
-            }
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-            }}
-          />
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              gap: 7,
-            }}
-          >
-            <T size={11} color={C.muted} style={{ flex: 1 }}>
-              {i.title}
+          <Card style={{ flex: 1, padding: 18, overflow: "hidden" }}>
+            <LinearGradient
+              pointerEvents="none"
+              colors={
+                index % 4 === 0
+                  ? ["#FFFFFF", "#E0F5ED"]
+                  : index % 4 === 1
+                    ? ["#FFFFFF", "#E8F0FA"]
+                    : index % 4 === 2
+                      ? ["#FFFFFF", "#FFF0E7"]
+                      : ["#FFFFFF", "#F0EBFA"]
+              }
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+              }}
+            />
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                gap: 7,
+              }}
+            >
+              <T size={11} color={C.muted} style={{ flex: 1 }}>
+                {i.title}
+              </T>
+              {i.icon}
+            </View>
+            <T bold size={26} style={{ marginTop: 13 }}>
+              {i.value}
             </T>
-            {i.icon}
-          </View>
-          <T bold size={26} style={{ marginTop: 13 }}>
-            {i.value}
-          </T>
-          <T size={10} color={C.muted} style={{ marginTop: 6 }}>
-            {i.note}
-          </T>
-        </Card>
+            <T size={10} color={C.muted} style={{ marginTop: 6 }}>
+              {i.note}
+            </T>
+          </Card>
+        </Reveal>
       ))}
     </View>
   );
@@ -169,7 +167,7 @@ export function NativeTable({
           <View
             style={{
               flexDirection: "row",
-              backgroundColor: "#EFF3EB",
+              backgroundColor: C.subtle,
               paddingVertical: 15,
               borderBottomWidth: 1,
               borderColor: C.line,

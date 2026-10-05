@@ -1,10 +1,6 @@
+import { ActionPressable as Pressable } from "./motion";
 import React, { useRef, useState } from "react";
-import {
-  View,
-  Keyboard,
-  TextInput,
-  Pressable,
-} from "react-native";
+import { View, Keyboard, TextInput } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FormScroll } from "./keyboard-layout";
 import {
@@ -171,225 +167,221 @@ export function AuthScreen() {
   return (
     <FormScroll
       style={{ flex: 1, backgroundColor: C.canvas }}
-        contentContainerStyle={{
-          padding: 24,
-          paddingBottom: 24 + insets.bottom,
-          flexGrow: 1,
-          width: "100%",
-          maxWidth: 560,
-          alignSelf: "center",
+      contentContainerStyle={{
+        padding: 24,
+        paddingBottom: 24 + insets.bottom,
+        flexGrow: 1,
+        width: "100%",
+        maxWidth: 560,
+        alignSelf: "center",
+      }}
+    >
+      <View style={{ marginTop: 12, marginBottom: 24 }}>
+        <Brand />
+      </View>
+      <LinearGradient
+        colors={[C.navy, "#274D60"]}
+        style={{
+          height: 165,
+          borderRadius: 27,
+          overflow: "hidden",
+          marginBottom: 29,
+          padding: 22,
+          justifyContent: "center",
         }}
       >
-        <View style={{ marginTop: 12, marginBottom: 24 }}>
-          <Brand />
+        <View style={{ width: "62%" }}>
+          <T size={25} bold color={C.white} style={{ lineHeight: 31 }}>
+            A little local.{String.fromCharCode(10)}A lot of good.
+          </T>
+          <T size={11} color={C.lime} style={{ marginTop: 10, lineHeight: 17 }}>
+            Your everyday essentials,{String.fromCharCode(10)}ready when you
+            are.
+          </T>
         </View>
-        <LinearGradient
-          colors={["#E8EEDB", "#DCECBA"]}
+        <View
           style={{
-            height: 165,
-            borderRadius: 27,
-            overflow: "hidden",
-            marginBottom: 29,
-            padding: 22,
-            justifyContent: "center",
+            position: "absolute",
+            right: -30,
+            bottom: -2,
+            transform: [{ rotate: "-10deg" }],
           }}
         >
-          <View style={{ width: "62%" }}>
-            <T size={24} bold style={{ lineHeight: 29 }}>
-              A little local.{String.fromCharCode(10)}A lot of good.
-            </T>
-            <T
-              size={11}
-              color={C.forest}
-              style={{ marginTop: 10, lineHeight: 17 }}
-            >
-              Your everyday essentials,{String.fromCharCode(10)}ready when you
-              are.
-            </T>
-          </View>
-          <View
-            style={{
-              position: "absolute",
-              right: -18,
-              bottom: -2,
-              transform: [{ rotate: "-10deg" }],
-            }}
-          >
-            <ProductArt artwork="rice" width={190} height={155} />
-          </View>
-        </LinearGradient>
-        <View style={{ flexDirection: "row", gap: 10, marginBottom: 26 }}>
-          <Chip
-            label="Customer"
-            selected={role === "customer"}
-            onPress={() => {
-              Keyboard.dismiss();
-              setRole("customer");
-              setSignup(false);
-              setError("");
-              setFieldErrors({});
-            }}
-            icon={
-              <ShoppingBag
-                size={15}
-                color={role === "customer" ? C.white : C.muted}
-              />
-            }
-          />
-          <Chip
-            label="Admin"
-            selected={role === "admin"}
-            onPress={() => {
-              Keyboard.dismiss();
-              setRole("admin");
-              setSignup(false);
-              setError("");
-              setFieldErrors({});
-            }}
-            icon={
-              <ShieldCheck
-                size={15}
-                color={role === "admin" ? C.white : C.muted}
-              />
-            }
-          />
+          <ProductArt artwork="rice" width={170} height={160} />
         </View>
-        <T size={30} bold>
-          {signup
-            ? "Hello, neighbour."
-            : role === "admin"
-              ? "Welcome back, admin."
-              : "Welcome back."}
-        </T>
-        <T size={13} color={C.muted} style={{ marginTop: 8, marginBottom: 26 }}>
-          {signup
-            ? "Create your Aone Mart account in a moment."
-            : role === "admin"
-              ? "Your store, orders and insights — in one place."
-              : "Fresh picks and everyday favourites are waiting."}
-        </T>
-        {signup && (
-          <Input
-            ref={nameRef}
-            label="Your name"
-            error={fieldErrors.name}
-            value={name}
-            onChangeText={(value) => {
-              setName(value);
-              setFieldErrors((current) => ({ ...current, name: undefined }));
-            }}
-            placeholder="What should we call you?"
-            autoCapitalize="words"
-            autoComplete="name"
-            returnKeyType="next"
-            submitBehavior="submit"
-            onSubmitEditing={() => phoneRef.current?.focus()}
-          />
-        )}
-        <Input
-          ref={phoneRef}
-          label="Mobile number"
-          error={fieldErrors.phone}
-          value={phone}
-          onChangeText={(value) => {
-            setPhone(value.replace(/[^0-9]/g, ""));
-            setFieldErrors((current) => ({ ...current, phone: undefined }));
+      </LinearGradient>
+      <View style={{ flexDirection: "row", gap: 10, marginBottom: 26 }}>
+        <Chip
+          label="Customer"
+          selected={role === "customer"}
+          onPress={() => {
+            Keyboard.dismiss();
+            setRole("customer");
+            setSignup(false);
+            setError("");
+            setFieldErrors({});
           }}
-          placeholder="10-digit mobile number"
-          keyboardType="phone-pad"
-          autoComplete="tel"
-          maxLength={10}
+          icon={
+            <ShoppingBag
+              size={15}
+              color={role === "customer" ? C.white : C.muted}
+            />
+          }
+        />
+        <Chip
+          label="Admin"
+          selected={role === "admin"}
+          onPress={() => {
+            Keyboard.dismiss();
+            setRole("admin");
+            setSignup(false);
+            setError("");
+            setFieldErrors({});
+          }}
+          icon={
+            <ShieldCheck
+              size={15}
+              color={role === "admin" ? C.white : C.muted}
+            />
+          }
+        />
+      </View>
+      <T size={30} bold>
+        {signup
+          ? "Hello, neighbour."
+          : role === "admin"
+            ? "Welcome back, admin."
+            : "Welcome back."}
+      </T>
+      <T size={13} color={C.muted} style={{ marginTop: 8, marginBottom: 26 }}>
+        {signup
+          ? "Create your Aone Mart account in a moment."
+          : role === "admin"
+            ? "Your store, orders and insights — in one place."
+            : "Fresh picks and everyday favourites are waiting."}
+      </T>
+      {signup && (
+        <Input
+          ref={nameRef}
+          label="Your name"
+          error={fieldErrors.name}
+          value={name}
+          onChangeText={(value) => {
+            setName(value);
+            setFieldErrors((current) => ({ ...current, name: undefined }));
+          }}
+          placeholder="What should we call you?"
+          autoCapitalize="words"
+          autoComplete="name"
           returnKeyType="next"
           submitBehavior="submit"
-          onSubmitEditing={() => passwordRef.current?.focus()}
+          onSubmitEditing={() => phoneRef.current?.focus()}
         />
-        <Input
-          ref={passwordRef}
-          label="Password"
-          error={fieldErrors.password}
-          value={password}
-          onChangeText={(value) => {
-            setPassword(value);
-            setFieldErrors((current) => ({ ...current, password: undefined }));
-          }}
-          placeholder="At least 8 characters"
-          autoCapitalize="none"
-          autoComplete={signup ? "new-password" : "current-password"}
-          secureTextEntry={!visible}
-          returnKeyType="go"
-          onSubmitEditing={() => void submit()}
-          right={
-            <Pressable
-              accessibilityLabel={visible ? "Hide password" : "Show password"}
-              onPress={() => setVisible((v) => !v)}
-              hitSlop={12}
-            >
-              {visible ? (
-                <EyeOff size={19} color={C.muted} />
-              ) : (
-                <Eye size={19} color={C.muted} />
-              )}
-            </Pressable>
-          }
-        />
-        {error !== "" && (
-          <View style={{ marginBottom: 17 }}>
-            <Notice text={error} type="error" />
-          </View>
-        )}
-        <Button
-          title={
-            signup
-              ? "Create account"
-              : role === "admin"
-                ? "Open admin workspace"
-                : "Let’s shop"
-          }
-          onPress={submit}
-          loading={busy}
-          icon={<ArrowRight size={18} color={C.white} />}
-        />
-        {role === "customer" ? (
+      )}
+      <Input
+        ref={phoneRef}
+        label="Mobile number"
+        error={fieldErrors.phone}
+        value={phone}
+        onChangeText={(value) => {
+          setPhone(value.replace(/[^0-9]/g, ""));
+          setFieldErrors((current) => ({ ...current, phone: undefined }));
+        }}
+        placeholder="10-digit mobile number"
+        keyboardType="phone-pad"
+        autoComplete="tel"
+        maxLength={10}
+        returnKeyType="next"
+        submitBehavior="submit"
+        onSubmitEditing={() => passwordRef.current?.focus()}
+      />
+      <Input
+        ref={passwordRef}
+        label="Password"
+        error={fieldErrors.password}
+        value={password}
+        onChangeText={(value) => {
+          setPassword(value);
+          setFieldErrors((current) => ({ ...current, password: undefined }));
+        }}
+        placeholder="At least 8 characters"
+        autoCapitalize="none"
+        autoComplete={signup ? "new-password" : "current-password"}
+        secureTextEntry={!visible}
+        returnKeyType="go"
+        onSubmitEditing={() => void submit()}
+        right={
           <Pressable
-            onPress={() => {
-              Keyboard.dismiss();
-              setSignup(!signup);
-              setError("");
-              setFieldErrors({});
-            }}
-            style={{ paddingVertical: 23, alignItems: "center" }}
+            accessibilityLabel={visible ? "Hide password" : "Show password"}
+            onPress={() => setVisible((v) => !v)}
+            hitSlop={12}
           >
-            <T size={13} color={C.muted}>
-              {signup
-                ? "Already have an account? "
-                : "New to the neighbourhood? "}
-              <T bold color={C.forest}>
-                {signup ? "Log in" : "Sign up"}
-              </T>
-            </T>
+            {visible ? (
+              <EyeOff size={19} color={C.muted} />
+            ) : (
+              <Eye size={19} color={C.muted} />
+            )}
           </Pressable>
-        ) : (
-          <T
-            size={12}
-            color={C.muted}
-            style={{ textAlign: "center", lineHeight: 19, marginTop: 22 }}
-          >
-            Admin access is created by the mart owner.{String.fromCharCode(10)}
-            Contact them if you need a password reset.
-          </T>
-        )}
-        <View style={{ flex: 1, minHeight: 24 }} />
+        }
+      />
+      {error !== "" && (
+        <View style={{ marginBottom: 17 }}>
+          <Notice text={error} type="error" />
+        </View>
+      )}
+      <Button
+        title={
+          signup
+            ? "Create account"
+            : role === "admin"
+              ? "Open admin workspace"
+              : "Let’s shop"
+        }
+        onPress={submit}
+        loading={busy}
+        icon={<ArrowRight size={18} color={C.white} />}
+      />
+      {role === "customer" ? (
         <Pressable
           onPress={() => {
             Keyboard.dismiss();
-            setConnected(false);
+            setSignup(!signup);
+            setError("");
+            setFieldErrors({});
           }}
-          style={{ paddingVertical: 12, alignSelf: "center" }}
+          style={{ paddingVertical: 23, alignItems: "center" }}
         >
-          <T size={11} color={C.muted}>
-            Change mart connection
+          <T size={13} color={C.muted}>
+            {signup
+              ? "Already have an account? "
+              : "New to the neighbourhood? "}
+            <T bold color={C.forest}>
+              {signup ? "Log in" : "Sign up"}
+            </T>
           </T>
         </Pressable>
+      ) : (
+        <T
+          size={12}
+          color={C.muted}
+          style={{ textAlign: "center", lineHeight: 19, marginTop: 22 }}
+        >
+          Admin access is created by the mart owner.{String.fromCharCode(10)}
+          Contact them if you need a password reset.
+        </T>
+      )}
+      <View style={{ flex: 1, minHeight: 24 }} />
+      <Pressable
+        onPress={() => {
+          Keyboard.dismiss();
+          setConnected(false);
+        }}
+        style={{ paddingVertical: 12, alignSelf: "center" }}
+      >
+        <T size={11} color={C.muted}>
+          Change mart connection
+        </T>
+      </Pressable>
     </FormScroll>
   );
 }
