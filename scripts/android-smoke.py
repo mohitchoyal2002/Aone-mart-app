@@ -308,7 +308,7 @@ try:
     time.sleep(2)
     wait("Pause market video", desc=True)
     screenshot("03e-native-market-video")
-    click("Cart", desc=True)
+    click("Cart")
     wait("Your basket")
     click("Home", desc=True)
     wait("Home", desc=True)
@@ -325,7 +325,9 @@ try:
     dismiss_keyboard()
     wait("Home", desc=True)
     click("Add Basmati Rice to cart", desc=True)
-    click("Cart", desc=True)
+    # Cart announces its item count once populated, while its visible label
+    # stays Cart. Text lookup matches both the empty and populated tab.
+    click("Cart")
     wait("Your basket")
     fill("Anything we should know?", "Please pack carefully", keep_keyboard=True)
     assert_input_above_keyboard("A note for the mart (optional)", "keyboard-06-cart-note")
