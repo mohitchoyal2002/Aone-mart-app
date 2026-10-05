@@ -9,7 +9,8 @@ Admin and customer endpoints retain their own password and role checks.
 
 Project `aone-mart-app` is linked to this repository; root directory `apps/api`,
 Express framework, Node 24, Mumbai function region. The owner approved the free
-Turso integration and created `aone-mart-db` in Mumbai. Production is live at **https://aone-mart-app.vercel.app**. Enter this exact origin
+Turso integration and created `aone-mart-db` in Mumbai. Production is live at **https://api.aoneonlinemart.shop**;
+**https://aone-mart-app.vercel.app** remains available. Enter either origin
 in the Android app, without `/api`. Anonymous HTTPS health returned 200 and the
 Turso database was verified through live admin login, inventory/dashboard reads,
 Gemini chat (200) and logout revocation (401). 29 backend integration tests pass.
@@ -37,10 +38,10 @@ configuration; subsequent builds retain the existing administrator and stock.
   retain its authenticated WebSocket endpoint.
 - Vercel uploads accept up to 4 MB, leaving space for multipart headers within
   the function body limit. Local/Docker uploads retain their 5 MB limit.
-- `api.aoneonlinemart.shop` is assigned to this Vercel project. It is **pending DNS**,
-  and is not yet the app service address. At GoDaddy create CNAME `api` pointing to
-  `01be81785bffb4f9.vercel-dns-017.com.`. Vercel reports invalid configuration until
-  DNS resolves correctly. Old `app`/`admin` DNS removal awaits GoDaddy access.
+- `api.aoneonlinemart.shop` is assigned to this Vercel project. Its HTTPS health
+  endpoint returned 200 on 5 October 2026 after deployment of commit `9ebf06e`.
+  The Vercel production deployment reports the custom domain assigned with no
+  alias error. Existing `app`/`admin` DNS cleanup is separate from this release.
   The root domain and `www` are outside the requested DNS changes.
 
 ## Render

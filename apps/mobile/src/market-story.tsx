@@ -3,7 +3,7 @@ import { View, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { LinearGradient } from "expo-linear-gradient";
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused } from "expo-router";
 import { Pause, Play, ArrowUpRight } from "lucide-react-native";
 import { ActionPressable, useMotion } from "./motion";
 import { C, T } from "./ui";

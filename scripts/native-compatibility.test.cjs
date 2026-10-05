@@ -49,3 +49,58 @@ test("Anime animates Three objects when window exists without a DOM", () => {
   turn.cancel();
   float.cancel();
 });
+
+test("MarketStory renders in SDK 57 Router context and stops video when unfocused", () => {
+  const React = require("react");
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const { readFileSync } = require("node:fs");
+  const { join, dirname } = require("node:path");
+  const { runInNewContext } = require("node:vm");
+  const ts = require("typescript");
+  const routerRoot = dirname(require.resolve("expo-router/package.json"));
+  const core = join(routerRoot, "build/react-navigation/core");
+  const { NavigationContext } = require(join(core, "NavigationContext.js"));
+  const { IsFocusedContext, useIsFocused } = require(join(core, "useIsFocused.js"));
+  const legacyRoot = dirname(require.resolve("@react-navigation/core/package.json"));
+  const legacyHook = require(join(legacyRoot, "lib/module/useIsFocused.js")).useIsFocused;
+  const navigation = { isFocused: () => true, addListener: () => () => {} };
+  let players = 0;
+  const primitive = ({ children }) => React.createElement("div", null, children);
+  const dependencies = {
+    react: React,
+    "react-native": { View: primitive, StyleSheet: { absoluteFill: {} } },
+    "expo-image": { Image: () => React.createElement("img", { alt: "poster" }) },
+    "expo-video": {
+      useVideoPlayer: (_source, setup) => { players++; const player = {}; setup(player); return player; },
+      VideoView: () => React.createElement("video"),
+    },
+    "expo-linear-gradient": { LinearGradient: primitive },
+    "expo-router": { useIsFocused },
+    "@react-navigation/native": { useIsFocused: legacyHook },
+    "lucide-react-native": { Pause: primitive, Play: primitive, ArrowUpRight: primitive },
+    "./motion": { ActionPressable: primitive, useMotion: () => ({ enabled: true, reduced: false }) },
+    "./ui": { C: {}, T: primitive },
+  };
+  const { outputText } = ts.transpileModule(
+    readFileSync(join(__dirname, "../apps/mobile/src/market-story.tsx"), "utf8"),
+    { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022,
+        jsx: ts.JsxEmit.React, esModuleInterop: true } },
+  );
+  const exports = {};
+  runInNewContext(outputText, { exports, require(name) {
+    if (name.startsWith("../assets/")) return name;
+    assert.ok(name in dependencies, `Unexpected dependency: ${name}`);
+    return dependencies[name];
+  } });
+  const render = (focused, active = true) => renderToStaticMarkup(
+    React.createElement(NavigationContext.Provider, { value: navigation },
+      React.createElement(IsFocusedContext.Provider, { value: focused },
+        React.createElement(exports.MarketStory, { active }))),
+  );
+  assert.match(render(false), /poster/);
+  assert.equal(players, 0, "An unfocused screen must not create a video player");
+  assert.match(render(true), /<video/);
+  assert.equal(players, 1);
+  assert.doesNotMatch(render(true, false), /<video/);
+  assert.equal(players, 1, "Offscreen video must stay unmounted");
+});

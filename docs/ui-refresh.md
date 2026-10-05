@@ -18,7 +18,7 @@ The `/render` page exposes `window.captureAll()` to regenerate 1024-pixel model 
 
 ## Native release
 
-Mobile version is 1.1.0 / Android version code 6. `expo-video` adds a native module, so this refresh requires a new development/release build; a JavaScript-only update cannot add the player to an old installed APK. Expo config disables background video and picture-in-picture.
+Mobile version is 1.1.1 / Android version code 7. `expo-video` adds a native module, so this refresh requires a new development/release build; a JavaScript-only update cannot add the player to an old installed APK. Expo config disables background video and picture-in-picture.
 
 SwilERP synchronization remains deferred. Invoice, stock, reservation, pickup and payment semantics are unchanged.
 
