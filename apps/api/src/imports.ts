@@ -16,6 +16,7 @@ import { requireAuth, adminOnly } from "./auth.js";
 import { id, fail, money, audit, phone, AppError } from "./core.js";
 import { extractInvoice } from "./ai.js";
 import { config } from "./config.js";
+import { normalizeBarcode } from "./barcodes.js";
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -29,6 +30,8 @@ const text = (min: number, max: number) => z.string().trim().min(min).max(max);
 const productRow = z
   .object({
     sku: text(1, 60),
+    barcode: z.string().trim().max(32).default(""),
+    legacy_sku: z.string().max(60).optional(),
     name: text(2, 160),
     category: text(2, 60),
     price: number.min(0).max(1000000),
@@ -144,7 +147,9 @@ function salesValue(record: Record<string, unknown>) {
     ),
   };
 }
-function inventoryValue(record: Record<string, unknown>) {
+function inventoryValue(
+  record: Record<string, unknown>,
+): Record<string, unknown> {
   const value = normalize(record);
   if (
     !(
@@ -153,7 +158,17 @@ function inventoryValue(record: Record<string, unknown>) {
       ("nametodisplay" in value || "product" in value)
     )
   )
-    return value;
+    return {
+      ...value,
+      barcode: String(
+        value.barcode ||
+          value.ean ||
+          value.ean13 ||
+          value.upc ||
+          value.gtin ||
+          "",
+      ),
+    };
   const name = String(value.nametodisplay || value.product || "").trim();
   const barcode = String(value.barcode || "").trim();
   // Zero is a missing POS barcode, never a shared SKU. Identity is independent
@@ -167,6 +182,8 @@ function inventoryValue(record: Record<string, unknown>) {
     .map((v) => String(v).trim().replace(/\s+/g, " ").toUpperCase())
     .join("|");
   return {
+    barcode,
+    legacy_sku: `POS-${createHash("sha256").update(identity).digest("hex").slice(0, 20).toUpperCase()}`,
     sku:
       barcode && !/^0+$/.test(barcode)
         ? barcode
@@ -196,6 +213,26 @@ async function productsForImport(skus: string[]) {
   }
   return result;
 }
+async function productsForRows(values: Record<string, any>[]) {
+  const products = await productsForImport(
+    values.flatMap((p) =>
+      [p.sku, p.legacy_sku].filter((v) => typeof v === "string"),
+    ),
+  );
+  for (const p of values) {
+    // An export can add a real EAN to a previously zero-barcode POS row. Keep
+    // its product ID, reservations, order history and manually supplied image.
+    if (
+      p.source_format === "pos_inventory" &&
+      normalizeBarcode(p.barcode) &&
+      !products.has(p.sku)
+    ) {
+      const previous = products.get(p.legacy_sku);
+      if (previous) products.set(p.sku, previous);
+    }
+  }
+  return products;
+}
 export async function validateRows(
   type: string,
   records: Record<string, unknown>[],
@@ -205,9 +242,7 @@ export async function validateRows(
   const prepared = records.map((record) =>
     type === "products" ? inventoryValue(record) : salesValue(record),
   );
-  const products = await productsForImport(
-    prepared.map((value) => String(value.sku || "")),
-  );
+  const products = await productsForRows(prepared);
   const invoiceNumbers = new Set<string>();
   if (type === "invoices") {
     const numbers = [
@@ -483,9 +518,7 @@ importsRouter.post("/:id/commit", async (req, res) => {
     const statements: Statement[] = [];
     const add = (sql: string, ...args: Statement["args"]) =>
       statements.push({ sql, args });
-    const products = await productsForImport(
-      values.flatMap((p) => (typeof p.sku === "string" ? [p.sku] : [])),
-    );
+    const products = await productsForRows(values);
     if (batch!.type === "products") {
       const categories = new Map(
         (await rows("SELECT id,name FROM categories")).map((c) => [
@@ -514,7 +547,8 @@ importsRouter.post("/:id/commit", async (req, res) => {
         const artwork = pos && old ? old.artwork : p.artwork;
         if (old)
           add(
-            "UPDATE products SET name=?,category_id=?,price=?,mrp=?,cost=?,stock=?,low_stock_threshold=?,unit=?,image_url=?,artwork=?,updated_at=? WHERE id=?",
+            "UPDATE products SET sku=?,name=?,category_id=?,price=?,mrp=?,cost=?,stock=?,low_stock_threshold=?,unit=?,image_url=?,artwork=?,updated_at=? WHERE id=?",
+            p.sku,
             p.name,
             categoryId,
             money(p.price),
@@ -545,6 +579,13 @@ importsRouter.post("/:id/commit", async (req, res) => {
             artwork,
             now(),
             now(),
+          );
+        const barcode = normalizeBarcode(p.barcode || p.sku);
+        if (barcode)
+          add(
+            "INSERT INTO product_barcodes(product_id,barcode) VALUES(?,?) ON CONFLICT(product_id) DO UPDATE SET barcode=excluded.barcode",
+            pid,
+            barcode,
           );
         if (pos)
           add(

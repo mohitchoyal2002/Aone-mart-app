@@ -31,9 +31,17 @@ export type Artwork =
   | "bag"
   | "snack"
   | "tea";
+export type ProductImageSource = {
+  provider: string;
+  url: string;
+  license: string;
+  barcode: string;
+  productName: string;
+};
 export interface Product {
   id: string;
   sku: string;
+  barcode?: string;
   name: string;
   categoryId: string;
   category: string;
@@ -46,6 +54,9 @@ export interface Product {
   lowStockThreshold: number;
   unit: string;
   imageUrl: string;
+  merchantImageUrl?: string;
+  imageThumbnailUrl?: string;
+  imageSource?: ProductImageSource | null;
   artwork: Artwork;
 }
 export interface CartLine {
@@ -53,7 +64,12 @@ export interface CartLine {
   quantity: number;
 }
 export type OrderStatus =
-  "placed" | "accepted" | "packed" | "picked" | "rejected" | "cancelled";
+  | "placed"
+  | "accepted"
+  | "packed"
+  | "picked"
+  | "rejected"
+  | "cancelled";
 export interface Order {
   id: string;
   number: string;

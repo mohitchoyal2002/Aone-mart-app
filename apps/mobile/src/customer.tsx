@@ -774,6 +774,10 @@ export function CartScreen() {
               <ProductArt
                 name={line.product.name}
                 category={line.product.category}
+                productId={line.product.id}
+                barcode={line.product.barcode}
+                imageThumbnailUrl={line.product.imageThumbnailUrl}
+                imageSource={line.product.imageSource}
                 artwork={line.product.artwork}
                 imageUrl={line.product.imageUrl}
                 width={69}

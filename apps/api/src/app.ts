@@ -52,7 +52,7 @@ app.get(["/", "/health"], async (_req, res) => {
   res.json({
     ok: true,
     service: "aone-mart-api",
-    version: "1.2.0",
+    version: "1.2.1",
     database: config.tursoUrl ? "turso" : "sqlite",
     realtime: config.serverless ? "polling" : "websocket",
     maxUploadBytes: (config.serverless ? 4 : 5) * 1024 * 1024,

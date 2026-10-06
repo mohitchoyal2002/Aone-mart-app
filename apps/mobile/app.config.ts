@@ -4,7 +4,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "Aone Mart",
   slug: "aone-mart",
-  version: "1.2.0",
+  version: "1.2.1",
   scheme: "aonemart",
   platforms: ["android"],
   orientation: "default",
@@ -12,7 +12,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   icon: "./assets/aone-icon.png",
   android: {
     package: "com.aonemart.app",
-    versionCode: 8,
+    versionCode: 9,
     softwareKeyboardLayoutMode: "resize",
     permissions: ["POST_NOTIFICATIONS", "VIBRATE"],
     ...(existsSync("./google-services.json")

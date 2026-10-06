@@ -8,7 +8,7 @@ One React Native Android app has separate Customer and Admin workspaces. Admin u
 | --- | --- |
 | Customer auth | Name, Indian phone number and password signup; customer login; profile/password updates |
 | Admin auth | Separate admin login; admin/customer roles enforced by the API |
-| Shopping | Automatic bundled photos for image-free imports, full-page product details, search, photographic categories, quick add and persistent cart |
+| Shopping | Barcode-matched product photos from public catalogs, full-page product details, search, photographic categories, quick add and persistent cart |
 | Checkout | Server-calculated prices, coupons, reward points, price-change review and idempotent order retries |
 | Pickup orders | Place → admin accepts/rejects → admin marks packed → customer confirms collection |
 | Inventory | Add/edit/hide products, categories, available/reserved stock, low-stock indicators and graphs |
@@ -19,7 +19,7 @@ One React Native Android app has separate Customer and Admin workspaces. Admin u
 | AI Summary | Read-only Gemini chat about current inventory, selected sales range, customers and coupons; Hindi/English questions |
 | Notifications | Authenticated realtime updates, persistent notification inbox/outbox and bundled custom new-order tone; remote push integration |
 
-**UI update:** version **1.2.0 / Android code 8** uses responsive startup/login layouts, compressed offline product photos and a full-page product view. Saved sessions restore before background validation. Product cards are memoized, the grid renders in small batches, and native video/Three.js load after pressing Play. The `Aone-Mart-APK` artifact contains the ARM64 phone build; `Aone-Mart-APK-emulator` retains x86 libraries for native QA. Packaging verifies the same signing certificate and byte-identical application payload. See [verification](docs/verification.md) for recorded results.
+**UI update:** version **1.2.1 / Android code 9** uses responsive startup/login layouts, cached barcode-matched product photos and a full-page product view. Saved sessions restore before background validation. Product cards are memoized, the grid renders in small batches, and native video/Three.js load after pressing Play. The `Aone-Mart-APK` artifact contains the ARM64 phone build; `Aone-Mart-APK-emulator` retains x86 libraries for native QA. Packaging verifies the same signing certificate and byte-identical application payload. See [verification](docs/verification.md) for recorded results.
 
 The current APK uses the same CI preview signing certificate as the 1.1.1 and earlier CI builds. The initial privately signed releases used a separate certificate; retain that private key for their update path. Notifications remain deferred (`ENABLE_NOTIFICATIONS=false`). Vercel workspace access is working and the `aone-mart-app` project is linked to this repository with root directory `apps/api`. The owner approved the Turso integration; the permanent Mumbai database is connected to production. The API now supports async libSQL write transactions and an Express serverless entry point. Production is live at **https://aone-mart-app.vercel.app**. Public health, admin authentication, inventory/dashboard totals, Gemini chat and logout revocation were verified. The custom API domain `https://api.aoneonlinemart.shop` is live and its health/store responses were verified. Local/VPS development can still use SQLite with a persistent disk. See [deployment](docs/deploy-backend.md) and [verification](docs/verification.md).
 
@@ -176,7 +176,8 @@ Template: `samples/products.csv`. All price fields are **rupees** in CSV/forms; 
 | `cost` | Purchase cost/unit; defaults to 0 |
 | `low_stock_threshold` | Defaults to 5 |
 | `unit` | Defaults to `1 unit` |
-| `image_url` | Optional HTTPS image URL; otherwise a compressed bundled photo is chosen from the product name/category |
+| `image_url` | Optional HTTPS merchant product photo; takes priority over public barcode matches |
+| `barcode` / `EAN` / `UPC` / `GTIN` | Optional real product barcode when `sku` is an internal ERP code; checksum-valid GTINs enable automatic photo lookup |
 | `artwork` | `rice`, `milk`, `oil`, `fruit`, `vegetable`, `soap`, `bread`, `bag`, `snack` or `tea` |
 
 Existing active SKUs are updated; missing categories are created. A hidden SKU must be restored through an appropriate inventory update before it can be imported. CSV import stock cannot be below reserved quantity.
@@ -199,7 +200,11 @@ Blank/zero barcodes receive separate stable `POS-...` SKUs derived from the prod
 
 POS snapshots preserve existing purchase costs, images, artwork and stock-alert thresholds because the export does not supply them. New items start with cost 0 and no image; enter actual purchase costs before relying on estimated profit. Source supplier/brand fields are stored privately and are not exposed by customer catalog responses.
 
-Image-free products do not require another import step. The app matches English/Hindi names such as rice, atta, dal, milk and tea to an offline photo library. Unknown products use a neutral grocery photo. These are representative photos, with a label on the detail page; they do not claim to show the exact brand or packaging. An admin's actual image URL takes priority, with a local fallback if it fails. Cards decode 384px WebP thumbnails; the full-page view uses 1024px images. Sources and license are recorded in [product photo credits](apps/mobile/assets/products/LICENSE.md).
+**Product photos:** real checksum-valid barcodes are matched against public catalogs, never guessed from names or ingredients. Open Food Facts (Search-a-licious), Open Beauty Facts and Open Products Facts supply selected front-package images; the free UPCitemdb lookup broadens coverage. The returned barcode must match the imported EAN/UPC/GTIN exactly, including equivalent leading-zero representations. Product cards, cart and full-page details share batched lookups. Results and provider misses are cached in the permanent database; provider rate limits and outages do not block shopping. Merchant image URLs take priority, and the detail page includes source/license attribution. Cards request a display-sized rendition; details use the original selected front photo, falling back to the same product's display image if necessary.
+
+Neither free catalogs nor barcode lookup services guarantee every Indian SKU. Missing, invalid or unlisted barcodes show a neutral **Photo unavailable** placeholder; the app never substitutes grocery bags, ingredient photos or another pack. Admin can enter an actual product image URL for catalog gaps. The bundled Unsplash library is now category decoration only. No provider account or paid plan is created: UPCitemdb is capped at 90 requests per installation per rolling day, and catalog search budgets are shared across serverless instances.
+
+An updated POS export that adds a real barcode to a previously zero-barcode row reuses its exact generated name/unit identity. Its product ID, stock reservations and merchant image are preserved, avoiding a duplicate product when the identity is unambiguous. Custom CSV imports can keep internal SKUs while supplying a separate EAN column.
 
 For an authenticated command-line import, run from the repository root using the private backend environment. Preview is the default; `--commit` writes the validated file through the same API as the app:
 

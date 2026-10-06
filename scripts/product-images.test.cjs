@@ -19,53 +19,36 @@ const compiled = ts.transpileModule(
 runInNewContext(compiled, { exports: exportsObject });
 const { productPhotoKind } = exportsObject;
 
-test("CSV names choose product photos despite default bag artwork or broad categories", () => {
-  for (const [name, expected] of [
-    ["India Gate Basmati Rice 1KG", "rice"],
-    ["Amul Milk500ml", "milk"],
-    ["SunflowerOil1LTR", "oil"],
-    ["5KG-AASHIRVAAD_ATTA", "flour"],
-    ["TATA Toor Dal", "lentils"],
-    ["PARLE MILK BISCUITS", "snack"],
-    ["Britannia Bread", "bread"],
-    ["Whole wheat bread", "bread"],
-    ["Milk bread", "bread"],
-    ["Rice flour", "flour"],
-    ["Bread flour", "flour"],
-    ["Rice bran oil", "oil"],
-    ["Dove milk soap", "soap"],
-    ["Milk tea", "tea"],
-    ["Tata Tea", "tea"],
-    ["बासमती चावल", "rice"],
-    ["गेहूं आटा", "flour"],
-    ["मूंग दाल", "lentils"],
-    ["दूध", "milk"],
-    ["साबुन", "soap"],
-    ["Fresh red apples", "apple"],
-    ["Garden broccoli", "broccoli"],
+test("Actual product names never select a stock photo, including the reported mismatches", () => {
+  for (const name of [
+    "365 DAYS PRNNI PASTA 250GM",
+    "420 CHANA CHATPATA PAPAD",
+    "420 MOONG PUNJABI MASALA PAPAD",
+    "420 MOONG SPECIAL PAPAD",
+    "5STAR OREO 20MRP",
+    "A ONE AGARBATTI 180G",
+    "A ONE AGARBATTI 1KG",
+    "A ONE AGARBATTI 260G",
+    "Amul Milk500ml",
+    "Toor Dal",
+    "Basmati Rice",
+    "Dove milk soap",
+    "Milk tea",
+    "मूंग दाल",
+    "दूध",
+    "Unknown item 123",
   ])
-    assert.equal(
-      productPhotoKind({ name, category: "General", artwork: "bag" }),
-      expected,
-      name,
-    );
+    for (const artwork of ["bag", "rice", "milk", "snack", "soap"])
+      assert.equal(
+        productPhotoKind({ name, category: "Dairy", artwork }),
+        null,
+        name,
+      );
 });
-
-test("Unrecognized imports stay neutral, and existing artwork/category remain useful", () => {
-  assert.equal(
-    productPhotoKind({ name: "ALUMINIUM FOIL", category: "General" }),
-    "grocery",
-  );
-  assert.equal(
-    productPhotoKind({ name: "Item 123", category: "General" }),
-    "grocery",
-  );
-  assert.equal(
-    productPhotoKind({ name: "Item 123", category: "Dairy" }),
-    "milk",
-  );
-  assert.equal(productPhotoKind({ name: "Item 123", artwork: "tea" }), "tea");
-  assert.equal(productPhotoKind({ name: "Atta", artwork: "rice" }), "flour");
+test("Stock images are reserved for decorative category tiles without product identities", () => {
+  assert.equal(productPhotoKind({ artwork: "bag" }), "grocery");
+  assert.equal(productPhotoKind({ category: "Dairy" }), "milk");
+  assert.equal(productPhotoKind({ artwork: "tea" }), "tea");
 });
 
 test("Bundled product photos are WebP, with small thumbnails and separate high resolution images", async () => {
