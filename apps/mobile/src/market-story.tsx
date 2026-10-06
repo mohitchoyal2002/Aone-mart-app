@@ -39,10 +39,10 @@ function StoryVideo({ onError }: { onError: () => void }) {
   );
 }
 
-export function MarketStory({ active = true }: { active?: boolean }) {
+export function MarketStory({ active = true, initiallyPaused = true }: { active?: boolean; initiallyPaused?: boolean }) {
   const { enabled, reduced } = useMotion();
   const focused = useIsFocused();
-  const [paused, setPaused] = useState(false);
+  const [paused, setPaused] = useState(initiallyPaused);
   const [failed, setFailed] = useState(false);
   const videoFailed = useCallback(() => setFailed(true), []);
   const playing = active && focused && enabled && !paused && !failed;

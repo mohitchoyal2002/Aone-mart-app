@@ -279,6 +279,8 @@ export function InventoryScreen() {
                   }}
                 >
                   <ProductArt
+                    name={p.name}
+                    category={p.category}
                     artwork={p.artwork}
                     imageUrl={p.imageUrl}
                     width={51}

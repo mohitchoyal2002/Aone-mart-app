@@ -22,6 +22,7 @@ function RootNavigator() {
       </Stack.Protected>
       <Stack.Protected guard={connected && user?.role === "customer"}>
         <Stack.Screen name="(customer)" />
+        <Stack.Screen name="product/[id]" />
       </Stack.Protected>
       <Stack.Protected guard={connected && user?.role === "admin"}>
         <Stack.Screen name="(admin)" />

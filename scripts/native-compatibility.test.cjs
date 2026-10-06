@@ -92,10 +92,10 @@ test("MarketStory renders in SDK 57 Router context and stops video when unfocuse
     assert.ok(name in dependencies, `Unexpected dependency: ${name}`);
     return dependencies[name];
   } });
-  const render = (focused, active = true) => renderToStaticMarkup(
+  const render = (focused, active = true, initiallyPaused = false) => renderToStaticMarkup(
     React.createElement(NavigationContext.Provider, { value: navigation },
       React.createElement(IsFocusedContext.Provider, { value: focused },
-        React.createElement(exports.MarketStory, { active }))),
+        React.createElement(exports.MarketStory, { active, initiallyPaused }))),
   );
   assert.match(render(false), /poster/);
   assert.equal(players, 0, "An unfocused screen must not create a video player");
@@ -103,4 +103,6 @@ test("MarketStory renders in SDK 57 Router context and stops video when unfocuse
   assert.equal(players, 1);
   assert.doesNotMatch(render(true, false), /<video/);
   assert.equal(players, 1, "Offscreen video must stay unmounted");
+  assert.doesNotMatch(render(true, true, true), /<video/);
+  assert.equal(players, 1, "The default paused state must not create a player");
 });

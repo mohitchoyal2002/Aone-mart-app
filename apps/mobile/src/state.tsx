@@ -6,13 +6,15 @@ import React, {
   useEffect,
   useCallback,
   useRef,
+  useMemo,
 } from "react";
-import { AppState} from "react-native";
+import { AppState } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import * as Haptics from "expo-haptics";
 import { api, ApiError } from "./api";
 import type { User, Session, CartLine, Product } from "./types";
+import { clearProductSnapshots } from "./product-cache";
 type AuthState = {
   user: User | null;
   loading: boolean;
@@ -28,6 +30,7 @@ type AuthState = {
 };
 const AuthContext = createContext<AuthState>(null!);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const sessionRevision = useRef(0);
   const [user, setUser] = useState<User | null>(null),
     [loading, setLoading] = useState(true),
     [connected, setConnected] = useState(false),
@@ -39,20 +42,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
     });
     (async () => {
+      const revision = sessionRevision.current;
       try {
-        const initial = await api.init();
+        const [initial, saved] = await Promise.all([
+          api.init(),
+          SecureStore.getItemAsync("aone-user"),
+        ]);
         if (!live) return;
         setConnected(initial.configured);
+        // Restore from local secure storage immediately; revalidate on the
+        // server in the background instead of blocking startup on the network.
+        if (initial.hasSession && saved) {
+          try {
+            const cached: User = JSON.parse(saved);
+            if (cached.id && ["admin", "customer"].includes(cached.role))
+              setUser(cached);
+          } catch {}
+        }
+        setLoading(false);
         if (initial.hasSession) {
           try {
             const r = await api.get<{ user: User }>("/api/auth/me");
-            if (live) setUser(r.user);
+            if (live && revision === sessionRevision.current) {
+              setUser(r.user);
+              await SecureStore.setItemAsync(
+                "aone-user",
+                JSON.stringify(r.user),
+              );
+            }
           } catch (e) {
+            if (!live || revision !== sessionRevision.current) return;
             if (e instanceof ApiError && e.status === 401) {
               await api.clear();
-            } else {
-              const saved = await SecureStore.getItemAsync("aone-user");
-              if (live && saved) setUser(JSON.parse(saved));
+              setUser(null);
             }
           }
         }
@@ -64,7 +86,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       live = false;
     };
   }, []);
+  useEffect(() => clearProductSnapshots(), [connected, user?.id]);
   const setSession = async (session: Session) => {
+    sessionRevision.current++;
     await api.save(session);
     setUser(session.user);
     setConnected(true);
@@ -77,6 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }, []);
   const logout = async () => {
+    sessionRevision.current++;
     await api.logout(deviceToken || undefined);
     setUser(null);
     setDeviceToken("");
@@ -157,7 +182,7 @@ function SessionCartProvider({
         JSON.stringify(lines),
       ).catch(() => {});
   }, [lines, ready, userId]);
-  const add = (product: Product) => {
+  const add = useCallback((product: Product) => {
     setLines((current) => {
       const old = current.find((l) => l.product.id === product.id),
         qty = (old?.quantity || 0) + 1;
@@ -175,36 +200,37 @@ function SessionCartProvider({
           )
         : [...current, { product, quantity: 1 }];
     });
-  };
-  const change = (pid: string, quantity: number) =>
-    setLines((current) =>
-      quantity <= 0
-        ? current.filter((l) => l.product.id !== pid)
-        : current.map((l) =>
-            l.product.id === pid
-              ? { ...l, quantity: Math.min(quantity, 999) }
-              : l,
-          ),
-    );
-  const clear = async () => {
-    setLines([]);
-    if (user) await AsyncStorage.removeItem(`aone-cart-${user.id}`);
-  };
-  return (
-    <CartContext.Provider
-      value={{
-        lines,
-        ready,
-        add,
-        change,
-        clear,
-        count: lines.reduce((s, l) => s + l.quantity, 0),
-        subtotal: lines.reduce((s, l) => s + l.product.price * l.quantity, 0),
-      }}
-    >
-      {children}
-    </CartContext.Provider>
+  }, []);
+  const change = useCallback(
+    (pid: string, quantity: number) =>
+      setLines((current) =>
+        quantity <= 0
+          ? current.filter((l) => l.product.id !== pid)
+          : current.map((l) =>
+              l.product.id === pid
+                ? { ...l, quantity: Math.min(quantity, 999) }
+                : l,
+            ),
+      ),
+    [],
   );
+  const clear = useCallback(async () => {
+    setLines([]);
+    if (userId) await AsyncStorage.removeItem(`aone-cart-${userId}`);
+  }, [userId]);
+  const value = useMemo(
+    () => ({
+      lines,
+      ready,
+      add,
+      change,
+      clear,
+      count: lines.reduce((s, l) => s + l.quantity, 0),
+      subtotal: lines.reduce((s, l) => s + l.product.price * l.quantity, 0),
+    }),
+    [lines, ready, add, change, clear],
+  );
+  return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
 export const useCart = () => useContext(CartContext);
 export function useLoad<T>(

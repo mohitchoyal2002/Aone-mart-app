@@ -1,6 +1,6 @@
 import { ActionPressable as Pressable } from "./motion";
 import React, { useRef, useState } from "react";
-import { View, Keyboard, TextInput } from "react-native";
+import { View, Keyboard, TextInput, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FormScroll } from "./keyboard-layout";
 import {
@@ -18,6 +18,7 @@ import { Brand, C, T, Input, Button, Chip, Notice } from "./ui";
 import { ProductArt } from "./art";
 import type { Role, Session } from "./types";
 export function ConnectionScreen() {
+  const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const { setConnected } = useAuth();
   const [url, setUrl] = useState(api.baseUrl || ""),
@@ -54,7 +55,7 @@ export function ConnectionScreen() {
       }}
     >
       <Brand />
-      <View style={{ height: 48 }} />
+      <View style={{ height: height < 650 ? 24 : 40 }} />
       <View
         style={{
           width: 66,
@@ -111,6 +112,7 @@ export function ConnectionScreen() {
   );
 }
 export function AuthScreen() {
+  const { width, fontScale } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const nameRef = useRef<TextInput>(null);
   const phoneRef = useRef<TextInput>(null);
@@ -182,33 +184,44 @@ export function AuthScreen() {
       <LinearGradient
         colors={[C.navy, "#274D60"]}
         style={{
-          height: 165,
+          minHeight: 165,
           borderRadius: 27,
           overflow: "hidden",
           marginBottom: 29,
-          padding: 22,
+          padding: 16,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
           justifyContent: "center",
         }}
       >
-        <View style={{ width: "62%" }}>
-          <T size={25} bold color={C.white} style={{ lineHeight: 31 }}>
+        <View style={{ flex: 1 }}>
+          <T
+            size={width < 360 ? 21 : 25}
+            bold
+            color={C.white}
+            style={{ lineHeight: width < 360 ? 28 : 31 }}
+          >
             A little local.{String.fromCharCode(10)}A lot of good.
           </T>
           <T size={11} color={C.lime} style={{ marginTop: 10, lineHeight: 17 }}>
-            Your everyday essentials,{String.fromCharCode(10)}ready when you
-            are.
+            Everyday essentials,{String.fromCharCode(10)}ready when you are.
           </T>
         </View>
-        <View
-          style={{
-            position: "absolute",
-            right: -30,
-            bottom: -2,
-            transform: [{ rotate: "-10deg" }],
-          }}
-        >
-          <ProductArt artwork="rice" width={170} height={160} />
-        </View>
+        {fontScale <= 1.25 && (
+          <View
+            style={{
+              borderRadius: 20,
+              overflow: "hidden",
+            }}
+          >
+            <ProductArt
+              artwork="bag"
+              width={width < 360 ? 82 : 110}
+              height={118}
+            />
+          </View>
+        )}
       </LinearGradient>
       <View style={{ flexDirection: "row", gap: 10, marginBottom: 26 }}>
         <Chip

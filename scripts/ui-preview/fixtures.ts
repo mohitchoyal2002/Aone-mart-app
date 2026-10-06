@@ -38,6 +38,9 @@ export const products: Product[] = entries.map((e, index) => ({
   lowStockThreshold: 5,
   imageUrl: "",
 }));
+// Verify a failed admin image still falls back to the offline photo library.
+if (new URLSearchParams(location.search).has("brokenPhoto"))
+  products[0].imageUrl = "http://127.0.0.1:4173/missing-product-photo.webp";
 export const store = {
   name: "Aone Mart",
   tagline: "Apni dukaan. Apna bharosa.",
@@ -133,6 +136,13 @@ export const api = {
         (p) => p.name.toLowerCase().includes(q) && (!c || p.categoryId === c),
       );
       return { products: filtered, total: filtered.length };
+    }
+    if (url.pathname.startsWith("/api/catalog/products/")) {
+      const product = products.find(
+        (p) => p.id === url.pathname.split("/").pop(),
+      );
+      if (!product) throw new Error("Product is no longer available.");
+      return { product };
     }
     if (url.pathname === "/api/orders") return { orders, total: orders.length };
     if (url.pathname.startsWith("/api/orders/"))

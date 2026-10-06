@@ -8,7 +8,7 @@ One React Native Android app has separate Customer and Admin workspaces. Admin u
 | --- | --- |
 | Customer auth | Name, Indian phone number and password signup; customer login; profile/password updates |
 | Admin auth | Separate admin login; admin/customer roles enforced by the API |
-| Shopping | Product images or bundled illustrations, search, categories, quick add, persistent cart |
+| Shopping | Automatic bundled photos for image-free imports, full-page product details, search, photographic categories, quick add and persistent cart |
 | Checkout | Server-calculated prices, coupons, reward points, price-change review and idempotent order retries |
 | Pickup orders | Place → admin accepts/rejects → admin marks packed → customer confirms collection |
 | Inventory | Add/edit/hide products, categories, available/reserved stock, low-stock indicators and graphs |
@@ -19,7 +19,7 @@ One React Native Android app has separate Customer and Admin workspaces. Admin u
 | AI Summary | Read-only Gemini chat about current inventory, selected sales range, customers and coupons; Hindi/English questions |
 | Notifications | Authenticated realtime updates, persistent notification inbox/outbox and bundled custom new-order tone; remote push integration |
 
-**UI update:** version **1.0.1 / Android code 2** adds keyboard-aware scrolling, Previous/Next/Done controls, multiline field clearance, visible chat input, inline signup validation and safe bottom spacing. [APK build 37183515362](https://github.com/mohitchoyal2002/Aone-mart-app/actions/runs/37183515362) succeeded. [Native QA 37184197151](https://github.com/mohitchoyal2002/Aone-mart-app/actions/runs/37184197151) passed **28 checks on each of Android 10/API 29 and Android 16/API 36**, including 14 open-keyboard field checks per platform, customer pickup and admin tablet navigation. Download `Aone-Mart-APK` from the successful build.
+**UI update:** version **1.2.0 / Android code 8** uses responsive startup/login layouts, compressed offline product photos and a full-page product view. Saved sessions restore before background validation. Product cards are memoized, the grid renders in small batches, and native video/Three.js load after pressing Play. The `Aone-Mart-APK` artifact contains the ARM64 phone build; `Aone-Mart-APK-emulator` retains x86 libraries for native QA. Packaging verifies the same signing certificate and byte-identical application payload. See [verification](docs/verification.md) for recorded results.
 
 The CI artifact uses the build signing key. Updates over the previously delivered APK need the retained private Aone Mart key; the privately signed APK is delivered separately. Notifications remain deferred (`ENABLE_NOTIFICATIONS=false`). Vercel workspace access is working and the `aone-mart-app` project is linked to this repository with root directory `apps/api`. The owner approved the Turso integration; the permanent Mumbai database is connected to production. The API now supports async libSQL write transactions and an Express serverless entry point. Production is live at **https://aone-mart-app.vercel.app**. Public health, admin authentication, inventory/dashboard totals, Gemini chat and logout revocation were verified. The requested `api.aoneonlinemart.shop` domain is added to Vercel and awaits GoDaddy DNS configuration. Local/VPS development can still use SQLite with a persistent disk. See [deployment](docs/deploy-backend.md) and [verification](docs/verification.md).
 
@@ -176,7 +176,7 @@ Template: `samples/products.csv`. All price fields are **rupees** in CSV/forms; 
 | `cost` | Purchase cost/unit; defaults to 0 |
 | `low_stock_threshold` | Defaults to 5 |
 | `unit` | Defaults to `1 unit` |
-| `image_url` | Optional HTTPS image URL; otherwise a bundled illustration is shown |
+| `image_url` | Optional HTTPS image URL; otherwise a compressed bundled photo is chosen from the product name/category |
 | `artwork` | `rice`, `milk`, `oil`, `fruit`, `vegetable`, `soap`, `bread`, `bag`, `snack` or `tea` |
 
 Existing active SKUs are updated; missing categories are created. A hidden SKU must be restored through an appropriate inventory update before it can be imported. CSV import stock cannot be below reserved quantity.
@@ -198,6 +198,8 @@ Inventory also accepts the mart's existing export with `NameToDisplay, Barcode, 
 Blank/zero barcodes receive separate stable `POS-...` SKUs derived from the product name and unit fields. Row order, stock and price changes do not change those IDs. A renamed product or changed unit without a real barcode needs review because it can generate a new SKU. Repeated real barcodes, negative/fractional stock, invalid prices and stock below reserved quantities block the whole file. Out-of-stock items remain in the catalog with zero availability.
 
 POS snapshots preserve existing purchase costs, images, artwork and stock-alert thresholds because the export does not supply them. New items start with cost 0 and no image; enter actual purchase costs before relying on estimated profit. Source supplier/brand fields are stored privately and are not exposed by customer catalog responses.
+
+Image-free products do not require another import step. The app matches English/Hindi names such as rice, atta, dal, milk and tea to an offline photo library. Unknown products use a neutral grocery photo. These are representative photos, with a label on the detail page; they do not claim to show the exact brand or packaging. An admin's actual image URL takes priority, with a local fallback if it fails. Cards decode 384px WebP thumbnails; the full-page view uses 1024px images. Sources and license are recorded in [product photo credits](apps/mobile/assets/products/LICENSE.md).
 
 For an authenticated command-line import, run from the repository root using the private backend environment. Preview is the default; `--commit` writes the validated file through the same API as the app:
 
