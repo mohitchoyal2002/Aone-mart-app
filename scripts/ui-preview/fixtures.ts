@@ -1,5 +1,6 @@
 // Clearly labelled sample catalog for local visual verification only.
 import bannerPoster from "../../apps/mobile/assets/motion/market-poster.jpg";
+import namePhoto from "./assets/name-punjabi-papad.png";
 import barcodePhoto from "./assets/barcode-nutella.jpg";
 import type { Product } from "../../apps/mobile/src/types";
 export const user = {
@@ -190,22 +191,44 @@ export const api = {
   async post(path: string, body: any): Promise<any> {
     if (path === "/api/catalog/product-images")
       return {
-        images: body.ids.map((id: string) => ({
-          id,
-          status: "matched",
-          imageUrl: new URLSearchParams(location.search).has("brokenFull")
-            ? "http://127.0.0.1:4173/missing-full-photo.jpg"
-            : barcodePhoto,
-          imageThumbnailUrl: barcodePhoto,
-          retryAfter: 0,
-          imageSource: {
-            provider: "Open Food Facts",
-            license: "CC BY-SA 3.0",
-            barcode: "03017620422003",
-            url: "https://world.openfoodfacts.org/product/3017620422003",
-            productName: "Nutella",
-          },
-        })),
+        images: body.ids.map((id: string) => {
+          const product = products.find((p) => p.id === id);
+          const photo = product?.barcode
+            ? barcodePhoto
+            : new URLSearchParams(location.search).has("namePhotos") &&
+                product?.name === "420 MOONG PUNJABI MASALA PAPAD"
+              ? namePhoto
+              : "";
+          return {
+            id,
+            status: photo ? "matched" : "unavailable",
+            imageUrl:
+              photo && new URLSearchParams(location.search).has("brokenFull")
+                ? "http://127.0.0.1:4173/missing-full-photo.jpg"
+                : photo,
+            imageThumbnailUrl: photo,
+            retryAfter: 0,
+            imageSource: !photo
+              ? null
+              : product?.barcode
+                ? {
+                    provider: "Open Food Facts",
+                    license: "CC BY-SA 3.0",
+                    barcode: "03017620422003",
+                    url: "https://world.openfoodfacts.org/product/3017620422003",
+                    productName: "Nutella",
+                  }
+                : {
+                    provider: "Quick Pantry",
+                    license: "Source image rights apply",
+                    barcode: "",
+                    matchMethod: "name",
+                    url: "https://www.quickpantry.in/products/agrawal-420-moong-papad-200-g",
+                    productName:
+                      "Agrawal 420 Moong Papad (Punjabi Masala) 200 g",
+                  },
+          };
+        }),
       };
     if (path === "/api/orders/quote") return { quote: quote(body) };
     if (path === "/api/orders") {

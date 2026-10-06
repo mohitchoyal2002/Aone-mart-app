@@ -543,7 +543,8 @@ importsRouter.post("/:id/commit", async (req, res) => {
         const cost = pos && old ? old.cost : money(p.cost);
         const threshold =
           pos && old ? old.low_stock_threshold : p.low_stock_threshold;
-        const image = pos && old ? old.image_url : p.image_url;
+        const image =
+          pos && old ? old.image_url : p.image_url || old?.image_url || "";
         const artwork = pos && old ? old.artwork : p.artwork;
         if (old)
           add(

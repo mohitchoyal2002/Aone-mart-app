@@ -1,4 +1,4 @@
-export const schemaVersion = 5;
+export const schemaVersion = 6;
 export const schemaSQL = `
 CREATE TABLE IF NOT EXISTS users (
  id TEXT PRIMARY KEY, name TEXT NOT NULL, phone TEXT NOT NULL UNIQUE,
@@ -50,11 +50,14 @@ CREATE TABLE IF NOT EXISTS import_batches(id TEXT PRIMARY KEY,type TEXT NOT NULL
 CREATE TABLE IF NOT EXISTS product_import_sources(product_id TEXT PRIMARY KEY REFERENCES products(id),import_batch_id TEXT NOT NULL REFERENCES import_batches(id),format TEXT NOT NULL,record_json TEXT NOT NULL,updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS product_barcodes(product_id TEXT PRIMARY KEY REFERENCES products(id),barcode TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS product_image_cache(barcode TEXT PRIMARY KEY,image_url TEXT NOT NULL,thumbnail_url TEXT NOT NULL,source_json TEXT NOT NULL,checked_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS product_uploaded_images(id TEXT PRIMARY KEY,product_id TEXT NOT NULL REFERENCES products(id),image BLOB NOT NULL,thumbnail BLOB NOT NULL,created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS product_name_photos(product_id TEXT PRIMARY KEY REFERENCES products(id),identity TEXT NOT NULL,name TEXT NOT NULL,unit TEXT NOT NULL,sku TEXT NOT NULL,barcode TEXT NOT NULL,image_url TEXT NOT NULL,thumbnail_url TEXT NOT NULL,source_json TEXT NOT NULL,attempts_json TEXT NOT NULL,retry_at INTEGER NOT NULL,status TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS product_image_lookups(barcode TEXT NOT NULL,provider TEXT NOT NULL,retry_at INTEGER NOT NULL,completed INTEGER NOT NULL,PRIMARY KEY(barcode,provider));
 CREATE TABLE IF NOT EXISTS invoice_import_sources(invoice_id TEXT PRIMARY KEY REFERENCES invoices(id),import_batch_id TEXT NOT NULL REFERENCES import_batches(id),customer_name TEXT NOT NULL DEFAULT '',received INTEGER NOT NULL DEFAULT 0,credit INTEGER NOT NULL DEFAULT 0,cheque INTEGER NOT NULL DEFAULT 0,card INTEGER NOT NULL DEFAULT 0,record_json TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS store_banners(id TEXT PRIMARY KEY,title TEXT NOT NULL,alt_text TEXT NOT NULL,image BLOB NOT NULL,mime_type TEXT NOT NULL,sort_order INTEGER NOT NULL,created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS audit_log(id TEXT PRIMARY KEY,actor_id TEXT NOT NULL REFERENCES users(id),action TEXT NOT NULL,entity_id TEXT,detail_json TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_uploaded_product ON product_uploaded_images(product_id);
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id,deleted_at);
 CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id,created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status,created_at DESC);
@@ -63,5 +66,5 @@ CREATE INDEX IF NOT EXISTS idx_redemptions_coupon ON coupon_redemptions(coupon_i
 CREATE INDEX IF NOT EXISTS idx_outbox_due ON notification_outbox(sent_at,available_at);
 CREATE INDEX IF NOT EXISTS idx_point_ledger_user ON point_ledger(user_id,created_at DESC);
 CREATE TABLE IF NOT EXISTS rate_limit_buckets(key TEXT PRIMARY KEY,hits INTEGER NOT NULL,reset_at INTEGER NOT NULL);
-PRAGMA user_version=5;
+PRAGMA user_version=6;
 `;

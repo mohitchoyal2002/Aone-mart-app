@@ -62,6 +62,8 @@ export const ProductPhoto = memo(function ProductPhoto({
   productId = "",
   barcode = "",
   name = "",
+  unit = "",
+  sku = "",
   category = "",
   artwork = "bag",
   imageUrl = "",
@@ -75,6 +77,8 @@ export const ProductPhoto = memo(function ProductPhoto({
   productId?: string;
   barcode?: string;
   name?: string;
+  unit?: string;
+  sku?: string;
   category?: string;
   artwork?: Artwork;
   imageUrl?: string;
@@ -89,7 +93,14 @@ export const ProductPhoto = memo(function ProductPhoto({
   ) => void;
 }) {
   const [failedUrls, setFailedUrls] = useState<string[]>([]);
-  const resolved = useResolvedProductPhoto(productId, barcode, imageUrl);
+  const resolved = useResolvedProductPhoto(
+    productId,
+    barcode,
+    imageUrl,
+    name,
+    unit,
+    sku,
+  );
   const full = imageUrl || resolved?.imageUrl || "";
   const thumb = imageThumbnailUrl || resolved?.imageThumbnailUrl || full;
   const preferred = detail ? full : thumb;

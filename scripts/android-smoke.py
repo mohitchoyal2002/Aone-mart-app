@@ -7,6 +7,7 @@ import secrets
 import subprocess
 import time
 import urllib.request
+import urllib.parse
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -91,6 +92,41 @@ def click(label, desc=False, exact=False):
     left, top, right, bottom = map(int, re.findall(r"\d+", node.get("bounds")))
     adb("shell", "input", "tap", str((left + right) // 2), str((top + bottom) // 2))
     time.sleep(.6)
+
+
+def choose_seeded_photo():
+    # SDK 57 uses the Android photo picker, with DocumentsUI as the
+    # fallback on Android versions that have no installed photo picker.
+    if find("Show roots", desc=True) is not None:
+        click("Show roots", desc=True)
+        # The current folder heading can also say Downloads. Select the
+        # drawer item, not the heading behind the open drawer.
+        tree = dump()
+        roots = tree.find(".//node[@resource-id='com.android.documentsui:id/roots_list']")
+        assert roots is not None, "DocumentsUI roots drawer is not open"
+        downloads = next((n for n in roots.iter("node") if n.get("text") == "Downloads"), None)
+        assert downloads is not None, "DocumentsUI Downloads root is missing"
+        left, top, right, bottom = map(int, re.findall(r"\d+", downloads.get("bounds")))
+        adb("shell", "input", "tap", str((left + right) // 2), str((top + bottom) // 2))
+        time.sleep(.6)
+        # Grid cells expose filename, size and time in one description.
+        click("aone-qa-banner.png")
+    else:
+        deadline = time.monotonic() + 30
+        photo = None
+        while time.monotonic() < deadline:
+            tree = dump()
+            # The Android 16 Compose picker exposes photo descriptions on
+            # non-clickable child nodes; their bounds remain tappable.
+            photo = next((n for n in tree.iter("node") if
+                          ("photo taken" in n.get("content-desc", "").casefold()
+                               or "aone-qa-banner" in (n.get("text", "") + n.get("content-desc", "")))), None)
+            if photo is not None:
+                break
+            time.sleep(1)
+        assert photo is not None, "Native photo picker did not show the seeded banner image"
+        left, top, right, bottom = map(int, re.findall(r"\d+", photo.get("bounds")))
+        adb("shell", "input", "tap", str((left + right) // 2), str((top + bottom) // 2))
 
 
 def admin_tab(label):
@@ -489,38 +525,7 @@ try:
     adb("shell", "am", "broadcast", "-a", "android.intent.action.MEDIA_SCANNER_SCAN_FILE", "-d", "file:///sdcard/Download/aone-qa-banner.png")
     for count in [0, 1]:
         click(f"Add banner · {count}/5", desc=True)
-        # SDK 57 uses the Android photo picker, with DocumentsUI as the
-        # fallback on Android versions that have no installed photo picker.
-        if find("Show roots", desc=True) is not None:
-            click("Show roots", desc=True)
-            # The current folder heading can also say Downloads. Select the
-            # drawer item, not the heading behind the open drawer.
-            tree = dump()
-            roots = tree.find(".//node[@resource-id='com.android.documentsui:id/roots_list']")
-            assert roots is not None, "DocumentsUI roots drawer is not open"
-            downloads = next((n for n in roots.iter("node") if n.get("text") == "Downloads"), None)
-            assert downloads is not None, "DocumentsUI Downloads root is missing"
-            left, top, right, bottom = map(int, re.findall(r"\d+", downloads.get("bounds")))
-            adb("shell", "input", "tap", str((left + right) // 2), str((top + bottom) // 2))
-            time.sleep(.6)
-            # Grid cells expose filename, size and time in one description.
-            click("aone-qa-banner.png")
-        else:
-            deadline = time.monotonic() + 30
-            photo = None
-            while time.monotonic() < deadline:
-                tree = dump()
-                # The Android 16 Compose picker exposes photo descriptions on
-                # non-clickable child nodes; their bounds remain tappable.
-                photo = next((n for n in tree.iter("node") if
-                              ("photo taken" in n.get("content-desc", "").casefold()
-                                   or "aone-qa-banner" in (n.get("text", "") + n.get("content-desc", "")))), None)
-                if photo is not None:
-                    break
-                time.sleep(1)
-            assert photo is not None, "Native photo picker did not show the seeded banner image"
-            left, top, right, bottom = map(int, re.findall(r"\d+", photo.get("bounds")))
-            adb("shell", "input", "tap", str((left + right) // 2), str((top + bottom) // 2))
+        choose_seeded_photo()
         wait("Add a banner")
         fill("Banner title", f"Native offer {count + 1}")
         fill("Describe the offer or image", "Neighbourhood essentials")
@@ -531,6 +536,26 @@ try:
         saved_banners = api("/api/admin/settings/banners", token=token)["banners"]
         assert len(saved_banners) == count + 1
     passed("Native image picker compresses and uploads multiple store banners")
+    admin_tab("Manage Inventory")
+    wait("Manage inventory", sensitive=True)
+    target = api("/api/admin/inventory?limit=1", token=token)["products"][0]
+    click("Edit " + target["name"], desc=True)
+    wait("Edit product")
+    click("Upload product photo", desc=True)
+    choose_seeded_photo()
+    wait("Change selected photo", desc=True)
+    click("Save product", desc=True)
+    wait("Manage inventory", sensitive=True)
+    updated = next(p for p in api("/api/admin/inventory?limit=100", token=token)["products"] if p["id"] == target["id"])
+    assert "/uploaded-product-images/" in updated["imageUrl"]
+    assert updated["imageThumbnailUrl"].endswith("?size=thumb")
+    for field in ["price", "mrp", "stock", "reserved"]:
+        assert updated[field] == target[field], "Photo upload changed " + field
+    thumbnail_path = urllib.parse.urlsplit(updated["imageThumbnailUrl"])
+    with urllib.request.urlopen("http://127.0.0.1:4000" + thumbnail_path.path + "?" + thumbnail_path.query) as image:
+        assert image.headers["Content-Type"].startswith("image/webp") and len(image.read()) > 0
+    screenshot("21-native-product-photo-upload")
+    passed("Native product photo upload saves a permanent thumbnail without changing stock or prices")
     admin_tab("AI Summary")
     wait("AI summary", sensitive=True)
     click("Ask anything about your mart", desc=True)

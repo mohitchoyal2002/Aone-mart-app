@@ -92,6 +92,8 @@ const Tile = memo(function Tile({
               <ProductArt
                 key={p.imageUrl}
                 productId={p.id}
+                unit={p.unit}
+                sku={p.sku}
                 barcode={p.barcode}
                 artwork={p.artwork}
                 name={p.name}

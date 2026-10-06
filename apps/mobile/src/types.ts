@@ -32,6 +32,7 @@ export type Artwork =
   | "snack"
   | "tea";
 export type ProductImageSource = {
+  matchMethod?: "barcode" | "name";
   provider: string;
   url: string;
   license: string;

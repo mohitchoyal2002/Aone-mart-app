@@ -9,6 +9,9 @@ import {
   TriangleAlert,
   IndianRupee,
 } from "lucide-react-native";
+import * as ImagePicker from "expo-image-picker";
+import { File } from "expo-file-system";
+import { prepareBannerImage } from "./banner-image";
 import { api } from "./api";
 import { useAuth, useLoad, alertError } from "./state";
 import {
@@ -89,8 +92,28 @@ export function InventoryScreen() {
   );
   const update = (key: keyof ReturnType<typeof blank>, value: string) =>
     setForm((f) => ({ ...f, [key]: value }));
+  const [photoUri, setPhotoUri] = useState("");
+  const pickPhoto = async () => {
+    setBusy(true);
+    try {
+      const selected = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsMultipleSelection: false,
+        quality: 1,
+      });
+      if (!selected.canceled)
+        setPhotoUri(
+          await prepareBannerImage(selected.assets[0].uri, "product photo"),
+        );
+    } catch (error) {
+      alertError(error);
+    } finally {
+      setBusy(false);
+    }
+  };
   const openForm = (p: Product | null) => {
     setEditing(p);
+    setPhotoUri("");
     setOpen(true);
     setShowCategory(false);
     setForm(
@@ -131,8 +154,22 @@ export function InventoryScreen() {
         !form.categoryId
       )
         throw new Error("Fill SKU, name, category, selling price and MRP.");
-      if (editing) await api.put(`/api/admin/inventory/${editing.id}`, d);
-      else await api.post("/api/admin/inventory", d);
+      const saved = editing
+        ? await api.put<{ product: Product }>(
+            `/api/admin/inventory/${editing.id}`,
+            d,
+          )
+        : await api.post<{ product: Product }>("/api/admin/inventory", d);
+      // Retain the saved ID if an upload fails, so retry does not create a duplicate.
+      setEditing(saved.product);
+      if (photoUri) {
+        const upload = new FormData();
+        upload.append("file", new File(photoUri), "product.jpg");
+        await api.request(`/api/admin/inventory/${saved.product.id}/photo`, {
+          method: "POST",
+          body: upload,
+        });
+      }
       setOpen(false);
       bump();
     } catch (e) {
@@ -284,6 +321,8 @@ export function InventoryScreen() {
                     name={p.name}
                     category={p.category}
                     productId={p.id}
+                    unit={p.unit}
+                    sku={p.sku}
                     barcode={p.barcode}
                     imageThumbnailUrl={p.imageThumbnailUrl}
                     imageSource={p.imageSource}
@@ -490,8 +529,31 @@ export function InventoryScreen() {
           keyboardType="url"
           autoCapitalize="none"
         />
+        <Button
+          title={photoUri ? "Change selected photo" : "Upload product photo"}
+          variant="secondary"
+          onPress={() => void pickPhoto()}
+          disabled={busy}
+        />
+        {photoUri ? (
+          <View style={{ alignItems: "center", marginVertical: 12 }}>
+            <ProductArt
+              name={form.name}
+              imageUrl={photoUri}
+              width={160}
+              height={160}
+            />
+          </View>
+        ) : null}
+        <Notice
+          text={
+            photoUri
+              ? "This photo will be saved with the product."
+              : "Photos are matched by barcode or product name. For a missing or incorrect match, upload the actual product photo once."
+          }
+        />
         <Select
-          label="Fallback product illustration"
+          label="Category artwork"
           value={form.artwork}
           onChange={(v) => update("artwork", v)}
           options={[

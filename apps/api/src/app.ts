@@ -17,6 +17,10 @@ import { devicesRouter } from "./notifications.js";
 import { config } from "./config.js";
 import { AppError } from "./core.js";
 import { row } from "./db.js";
+import {
+  productUploadsRouter,
+  uploadedProductImagesRouter,
+} from "./product-uploads.js";
 import { bannersRouter, bannerImagesRouter } from "./banners.js";
 export const app = express();
 app.disable("x-powered-by");
@@ -52,18 +56,20 @@ app.get(["/", "/health"], async (_req, res) => {
   res.json({
     ok: true,
     service: "aone-mart-api",
-    version: "1.2.1",
+    version: "1.2.2",
     database: config.tursoUrl ? "turso" : "sqlite",
     realtime: config.serverless ? "polling" : "websocket",
     maxUploadBytes: (config.serverless ? 4 : 5) * 1024 * 1024,
   });
 });
 app.use("/api/auth", authRouter);
+app.use("/api/catalog/uploaded-product-images", uploadedProductImagesRouter);
 app.use("/api/catalog/banners", bannerImagesRouter);
 app.use("/api/catalog", catalogRouter);
 app.use("/api/orders", ordersRouter);
 app.use("/api/rewards", rewardsRouter);
 app.use("/api/devices", devicesRouter);
+app.use("/api/admin/inventory", productUploadsRouter);
 app.use("/api/admin/inventory", inventoryRouter);
 app.use("/api/admin/orders", adminOrdersRouter);
 app.use("/api/admin/users", usersRouter);
@@ -106,7 +112,9 @@ app.use(
       res.status(413).json({
         error: req.path.startsWith("/api/admin/settings/banners")
           ? "Upload one banner image, no larger than 1 MB."
-          : `Upload one file, no larger than ${config.serverless ? 4 : 5} MB.`,
+          : /^\/api\/admin\/inventory\/[^/]+\/photo$/.test(req.path)
+            ? "Upload one product photo, no larger than 1 MB."
+            : `Upload one file, no larger than ${config.serverless ? 4 : 5} MB.`,
         code: "UPLOAD_LIMIT",
       });
       return;

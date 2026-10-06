@@ -149,6 +149,8 @@ export function ProductDetailScreen() {
               <ProductPhoto
                 key={id + p.imageUrl}
                 productId={p.id}
+                unit={p.unit}
+                sku={p.sku}
                 barcode={p.barcode}
                 name={p.name}
                 category={p.category}

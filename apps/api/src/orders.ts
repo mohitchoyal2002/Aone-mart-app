@@ -228,7 +228,9 @@ export async function createOrder(input: Cart, user: User, key: string) {
       const matched = p.image_url
         ? undefined
         : await row(
-            "SELECT i.image_url FROM product_barcodes b JOIN product_image_cache i ON i.barcode=b.barcode WHERE b.product_id=?",
+            `SELECT COALESCE(i.image_url,NULLIF(n.image_url,'')) image_url FROM products p
+             LEFT JOIN product_barcodes b ON b.product_id=p.id LEFT JOIN product_image_cache i ON i.barcode=b.barcode
+             LEFT JOIN product_name_photos n ON n.product_id=p.id AND n.name=p.name AND n.unit=p.unit AND n.sku=p.sku AND n.barcode=COALESCE(b.barcode,'') WHERE p.id=?`,
             p.id,
           );
       await run(

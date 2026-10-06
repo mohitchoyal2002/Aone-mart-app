@@ -5,7 +5,10 @@ import { File } from "expo-file-system";
 // well as its 1 MB upload limit. Dimensions alone do not bound JPEG size.
 const maxBannerBytes = 600 * 1024;
 
-export async function prepareBannerImage(uri: string): Promise<string> {
+export async function prepareBannerImage(
+  uri: string,
+  kind = "banner",
+): Promise<string> {
   const original = await ImageManipulator.manipulate(uri).renderAsync();
   for (const edge of [1600, 1200, 800]) {
     let rendered = original;
@@ -22,9 +25,11 @@ export async function prepareBannerImage(uri: string): Promise<string> {
     });
     const file = new File(image.uri);
     if (!file.exists || !file.size)
-      throw new Error("Cannot prepare this image. Choose another banner.");
+      throw new Error(`Cannot prepare this image. Choose another ${kind}.`);
     if (file.size <= maxBannerBytes) return image.uri;
     file.delete();
   }
-  throw new Error("This image is too detailed. Choose a smaller banner image.");
+  throw new Error(
+    `This image is too detailed. Choose a smaller ${kind} image.`,
+  );
 }
