@@ -14,33 +14,33 @@ export type PhotoKind =
   | "flour"
   | "lentils";
 type Identity = { name?: string; category?: string; artwork?: Artwork };
+// Match product types before their ingredients: milk biscuits are snacks,
+// wheat bread is bread, and rice-bran oil is oil.
 const names: [RegExp, PhotoKind][] = [
+  [
+    /\b(soap|shampoo|wash|washing|detergent|cleaner|toothpaste|sanitizer)\b|साबुन/,
+    "soap",
+  ],
   [
     /\b(biscuits?|cookies?|crackers?|rusk|choco|snacks?|chips?|namkeen)\b/,
     "snack",
   ],
+  [/\b(oil|ghee)\b|तेल|घी/, "oil"],
+  [/\b(atta|flour|maida|besan|aata|suji|sooji|rava)\b|आटा|मैदा|बेसन/, "flour"],
+  [/\b(bread|loaf|bun|bakery)\b|ब्रेड/, "bread"],
+  [/\b(tea|chai|coffee)\b|चाय|कॉफी/, "tea"],
   [
-    /\b(atta|flour|maida|besan|wheat|aata|suji|sooji|rava)\b|आटा|मैदा|बेसन/,
-    "flour",
+    /\b(milk|doodh|dudh|curd|yogurt|paneer|butter|cheese)\b|दूध|दही|पनीर/,
+    "milk",
   ],
   [
     /\b(dal|daal|lentils?|pulses?|moong|masoor|chana|rajma|toor|urad)\b|दाल/,
     "lentils",
   ],
   [/\b(rice|basmati|chawal)\b|चावल/, "rice"],
-  [/\b(oil|ghee|sunflower|mustard|refined)\b|तेल|घी/, "oil"],
-  [
-    /\b(milk|doodh|dudh|curd|yogurt|paneer|butter|cheese)\b|दूध|दही|पनीर/,
-    "milk",
-  ],
-  [/\b(bread|loaf|bun|bakery)\b|ब्रेड/, "bread"],
-  [
-    /\b(soap|shampoo|wash|washing|detergent|cleaner|toothpaste|sanitizer)\b|साबुन/,
-    "soap",
-  ],
-  [/\b(tea|chai|coffee)\b|चाय|कॉफी/, "tea"],
   [/\b(apples?)\b|सेब/, "apple"],
   [/\b(broccoli)\b/, "broccoli"],
+  [/\b(wheat)\b/, "flour"],
 ];
 const art: Record<Artwork, PhotoKind> = {
   rice: "rice",
