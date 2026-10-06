@@ -15,6 +15,7 @@ import * as Haptics from "expo-haptics";
 import { api, ApiError } from "./api";
 import type { User, Session, CartLine, Product } from "./types";
 import { clearProductSnapshots } from "./product-cache";
+import { clearResolvedProductPhotos } from "./product-photo-service";
 type AuthState = {
   user: User | null;
   loading: boolean;
@@ -86,7 +87,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       live = false;
     };
   }, []);
-  useEffect(() => clearProductSnapshots(), [connected, user?.id]);
+  useEffect(() => {
+    clearProductSnapshots();
+    clearResolvedProductPhotos();
+  }, [connected, user?.id]);
   const setSession = async (session: Session) => {
     sessionRevision.current++;
     await api.save(session);

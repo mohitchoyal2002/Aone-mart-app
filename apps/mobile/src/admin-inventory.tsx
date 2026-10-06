@@ -50,6 +50,7 @@ const blank = () => ({
   lowStockThreshold: "5",
   unit: "1 unit",
   imageUrl: "",
+  barcode: "",
   artwork: "bag" as Artwork,
 });
 export function InventoryScreen() {
@@ -104,7 +105,8 @@ export function InventoryScreen() {
             stock: String(p.stock || 0),
             lowStockThreshold: String(p.lowStockThreshold),
             unit: p.unit,
-            imageUrl: p.imageUrl,
+            imageUrl: p.merchantImageUrl ?? p.imageUrl,
+            barcode: p.barcode || "",
             artwork: p.artwork,
           }
         : { ...blank(), categoryId: categories.data?.categories[0]?.id || "" },
@@ -281,6 +283,10 @@ export function InventoryScreen() {
                   <ProductArt
                     name={p.name}
                     category={p.category}
+                    productId={p.id}
+                    barcode={p.barcode}
+                    imageThumbnailUrl={p.imageThumbnailUrl}
+                    imageSource={p.imageSource}
                     artwork={p.artwork}
                     imageUrl={p.imageUrl}
                     width={51}
@@ -469,6 +475,13 @@ export function InventoryScreen() {
           value={form.unit}
           onChangeText={(v) => update("unit", v)}
           placeholder="1 kg / 500 ml / 6 pieces"
+        />
+        <Input
+          label="Barcode / EAN (automatic product photo)"
+          value={form.barcode}
+          onChangeText={(v) => update("barcode", v)}
+          keyboardType="number-pad"
+          placeholder="Scan or enter the product's actual barcode"
         />
         <Input
           label="Product image URL (HTTPS, optional)"

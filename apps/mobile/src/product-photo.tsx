@@ -1,7 +1,11 @@
-import React, { memo, useState } from "react";
+import React, { memo, useEffect, useState } from "react";
+import { View } from "react-native";
 import { Image } from "expo-image";
+import { ImageOff } from "lucide-react-native";
 import { productPhotoKind } from "./product-images";
-import type { Artwork } from "./types";
+import { useResolvedProductPhoto } from "./product-photo-service";
+import { C, T } from "./ui";
+import type { Artwork, ProductImageSource } from "./types";
 
 const sources = {
   rice: {
@@ -55,51 +59,92 @@ const sources = {
 };
 
 export const ProductPhoto = memo(function ProductPhoto({
+  productId = "",
+  barcode = "",
   name = "",
   category = "",
   artwork = "bag",
   imageUrl = "",
+  imageThumbnailUrl = "",
+  imageSource = null,
   width = 150,
   height = 128,
   detail = false,
-  onRepresentative,
+  onPhotoChange,
 }: {
+  productId?: string;
+  barcode?: string;
   name?: string;
   category?: string;
   artwork?: Artwork;
   imageUrl?: string;
+  imageThumbnailUrl?: string;
+  imageSource?: ProductImageSource | null;
   width?: number;
   height?: number;
   detail?: boolean;
-  onRepresentative?: (representative: boolean) => void;
+  onPhotoChange?: (
+    source: ProductImageSource | null,
+    available: boolean,
+  ) => void;
 }) {
-  const [failedUrl, setFailedUrl] = useState("");
-  const kind = productPhotoKind({ name, category, artwork });
-  const remote = !!imageUrl && failedUrl !== imageUrl;
-  const local = sources[kind][detail ? "large" : "thumb"];
+  const [failedUrls, setFailedUrls] = useState<string[]>([]);
+  const resolved = useResolvedProductPhoto(productId, barcode, imageUrl);
+  const full = imageUrl || resolved?.imageUrl || "";
+  const thumb = imageThumbnailUrl || resolved?.imageThumbnailUrl || full;
+  const preferred = detail ? full : thumb;
+  const remote = [preferred, full, thumb].find(
+    (url) => url && !failedUrls.includes(url),
+  );
+  const source = imageUrl ? imageSource : resolved?.imageSource || null;
+  const kind =
+    productId || name.trim() ? null : productPhotoKind({ category, artwork });
+  useEffect(() => {
+    onPhotoChange?.(remote ? source : null, !!remote);
+  }, [remote, source, onPhotoChange]);
+  if (!remote && !kind)
+    return (
+      <View
+        accessibilityLabel={`Photo unavailable for ${name || "this product"}`}
+        style={{
+          width,
+          height,
+          backgroundColor: C.subtle,
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
+        }}
+      >
+        <ImageOff
+          size={Math.min(width, height) < 80 ? 21 : 34}
+          color={C.muted}
+          strokeWidth={1.5}
+        />
+        {width >= 100 && height >= 100 && (
+          <T size={11} color={C.muted}>
+            Photo unavailable
+          </T>
+        )}
+      </View>
+    );
+  const local = kind ? sources[kind][detail ? "large" : "thumb"] : undefined;
   return (
     <Image
-      source={remote ? { uri: imageUrl } : local}
-      placeholder={sources[kind].thumb}
-      placeholderContentFit="cover"
+      source={remote ? { uri: remote } : local}
       contentFit={remote ? "contain" : "cover"}
       cachePolicy="memory-disk"
       allowDownscaling
-      recyclingKey={`${name}|${imageUrl}|${kind}|${detail}`}
+      recyclingKey={`${productId}|${name}|${remote}|${kind}|${detail}`}
       transition={0}
-      style={{ width, height }}
+      style={{ width, height, backgroundColor: C.subtle }}
       accessibilityLabel={
-        remote
-          ? `${name || "Product"} photo`
-          : `Representative image of ${name || kind}`
+        remote ? `${name || "Product"} photo` : `${kind} category image`
       }
       onError={() => {
         if (remote) {
-          setFailedUrl(imageUrl);
-          onRepresentative?.(true);
+          setFailedUrls((urls) => [...urls, remote]);
         }
       }}
-      onLoad={() => onRepresentative?.(!remote)}
     />
   );
 });

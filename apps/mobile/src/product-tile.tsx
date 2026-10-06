@@ -91,10 +91,14 @@ const Tile = memo(function Tile({
             <Animated.View style={bounce}>
               <ProductArt
                 key={p.imageUrl}
+                productId={p.id}
+                barcode={p.barcode}
                 artwork={p.artwork}
                 name={p.name}
                 category={p.category}
                 imageUrl={p.imageUrl}
+                imageThumbnailUrl={p.imageThumbnailUrl}
+                imageSource={p.imageSource}
                 width={width - 22}
                 height={150}
               />

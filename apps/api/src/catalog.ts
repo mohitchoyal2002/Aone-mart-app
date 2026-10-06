@@ -4,9 +4,12 @@ import { rows, row, run, now, transaction, storeSettings } from "./db.js";
 import { requireAuth, adminOnly } from "./auth.js";
 import { id, fail, money, page, audit, escapeLike } from "./core.js";
 import { listBanners } from "./banners.js";
+import { normalizeBarcode } from "./barcodes.js";
+import { resolveProductPhotos } from "./product-photos.js";
 export const productSchema = z
   .object({
     sku: z.string().trim().min(1).max(60),
+    barcode: z.string().trim().max(32).optional(),
     name: z.string().trim().min(2).max(160),
     categoryId: z.string().uuid(),
     price: z.number().min(0).max(1000000),
@@ -40,10 +43,15 @@ export const productSchema = z
   })
   .strict()
   .refine((d) => d.mrp >= d.price, "MRP must be at least the selling price");
-export const productSelect = `SELECT p.*,c.name category FROM products p JOIN categories c ON c.id=p.category_id`;
+export const productSelect = `SELECT p.*,c.name category,b.barcode,
+  i.image_url matched_image_url,i.thumbnail_url matched_thumbnail_url,i.source_json image_source
+  FROM products p JOIN categories c ON c.id=p.category_id
+  LEFT JOIN product_barcodes b ON b.product_id=p.id
+  LEFT JOIN product_image_cache i ON i.barcode=b.barcode`;
 export const serializeProduct = (p: Record<string, any>) => ({
   id: p.id,
   sku: p.sku,
+  barcode: p.barcode || normalizeBarcode(p.sku),
   name: p.name,
   categoryId: p.category_id,
   category: p.category,
@@ -55,11 +63,16 @@ export const serializeProduct = (p: Record<string, any>) => ({
   available: p.stock - p.reserved,
   lowStockThreshold: p.low_stock_threshold,
   unit: p.unit,
-  imageUrl: p.image_url,
+  merchantImageUrl: p.image_url,
+  imageUrl: p.image_url || p.matched_image_url || "",
+  imageThumbnailUrl: p.image_url || p.matched_thumbnail_url || "",
+  imageSource:
+    !p.image_url && p.image_source ? JSON.parse(p.image_source) : null,
   artwork: p.artwork,
 });
 export const customerProduct = (p: Record<string, any>) => {
-  const { cost, stock, reserved, ...publicData } = serializeProduct(p);
+  const { cost, stock, reserved, merchantImageUrl, ...publicData } =
+    serializeProduct(p);
   return publicData;
 };
 export const catalogRouter = Router();
@@ -107,8 +120,22 @@ catalogRouter.get("/products/:id", async (req, res) => {
     productSelect + " WHERE p.id=? AND p.deleted_at IS NULL",
     req.params.id,
   );
-  if (!product) fail(404, "Product is no longer available.", "PRODUCT_NOT_FOUND");
+  if (!product)
+    fail(404, "Product is no longer available.", "PRODUCT_NOT_FOUND");
   res.json({ product: customerProduct(product!) });
+});
+catalogRouter.post("/product-images", async (req, res) => {
+  const { ids } = z
+    .object({ ids: z.array(z.string().uuid()).min(1).max(24) })
+    .parse(req.body);
+  const products = await rows(
+    productSelect +
+      ` WHERE p.deleted_at IS NULL AND p.id IN (${ids.map(() => "?").join(",")})`,
+    ...ids,
+  );
+  res
+    .set("Cache-Control", "no-store")
+    .json({ images: await resolveProductPhotos(products) });
 });
 export const inventoryRouter = Router();
 inventoryRouter.use(requireAuth, adminOnly);
@@ -175,6 +202,13 @@ inventoryRouter.post("/", async (req, res) => {
       now(),
     );
     await audit(req.user.id, "product.create", pid);
+    const barcode = normalizeBarcode(p.barcode || p.sku);
+    if (barcode)
+      await run(
+        "INSERT INTO product_barcodes(product_id,barcode) VALUES(?,?)",
+        pid,
+        barcode,
+      );
   });
   res.status(201).json({
     product: serializeProduct(
@@ -229,6 +263,18 @@ inventoryRouter.put("/:id", async (req, res) => {
         now(),
       );
     await audit(req.user.id, "product.update", pid);
+    const barcode = normalizeBarcode(
+      p.barcode === undefined ? p.sku : p.barcode,
+    );
+    if (barcode)
+      await run(
+        `INSERT INTO product_barcodes(product_id,barcode) VALUES(?,?)
+      ON CONFLICT(product_id) DO UPDATE SET barcode=excluded.barcode`,
+        pid,
+        barcode,
+      );
+    else if (p.barcode !== undefined)
+      await run("DELETE FROM product_barcodes WHERE product_id=?", pid);
   });
   res.json({
     product: serializeProduct(

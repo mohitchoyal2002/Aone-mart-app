@@ -341,7 +341,7 @@ try:
     wait("Home", desc=True)
     click("View Basmati Rice", desc=True)
     wait("Product details")
-    wait("Representative image · Brand and packaging may vary")
+    wait("A verified product photo is not available yet")
     assert find("Home", desc=True) is None, "Product details is still inside the tab grid"
     screenshot("03f-product-details")
     click("Add to basket", desc=True)

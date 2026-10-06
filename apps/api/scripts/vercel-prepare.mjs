@@ -286,6 +286,27 @@ try {
     "DELETE FROM refresh_sessions WHERE expires_at<?",
     new Date().toISOString(),
   );
+  stage = "product photo cache warmup";
+  try {
+    const { productSelect } = await import("../src/catalog.ts");
+    const { resolveProductPhotos } = await import("../src/product-photos.ts");
+    const photos = await resolveProductPhotos(
+      await rows(
+        productSelect + " WHERE p.deleted_at IS NULL ORDER BY p.name LIMIT 24",
+      ),
+    );
+    console.log(
+      "Product photo cache warmup:",
+      JSON.stringify(
+        photos.reduce((counts, photo) => {
+          counts[photo.status] = (counts[photo.status] || 0) + 1;
+          return counts;
+        }, {}),
+      ),
+    );
+  } catch {
+    console.log("Product photo warmup deferred; shopping remains available");
+  }
   console.log("Vercel preparation completed; notifications remain disabled");
 } catch (error) {
   // Provider errors may contain URLs or credentials. Emit only a stage and class/code.

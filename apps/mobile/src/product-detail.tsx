@@ -16,7 +16,7 @@ import { useAuth, useCart, useLoad } from "./state";
 import { api } from "./api";
 import { C, T, Button, Card, ErrorView, Loading, money } from "./ui";
 import { Stepper } from "./quantity-control";
-import type { Product, Store } from "./types";
+import type { Product, ProductImageSource, Store } from "./types";
 
 export function ProductDetailScreen() {
   const { id: param } = useLocalSearchParams<{ id: string }>();
@@ -37,7 +37,15 @@ export function ProductDetailScreen() {
     return { ...p, ...s };
   }, [id, epoch]);
   const p = result.data?.product || cached;
-  const [representative, setRepresentative] = useState(!cached?.imageUrl);
+  const [photo, setPhoto] = useState<{
+    source: ProductImageSource | null;
+    available: boolean;
+  }>({ source: null, available: false });
+  const photoChanged = React.useCallback(
+    (source: ProductImageSource | null, available: boolean) =>
+      setPhoto({ source, available }),
+    [],
+  );
   const imageSize = Math.min(Math.max(width - 40, 180), 460);
   const quantity =
     cart.lines.find((line) => line.product.id === id)?.quantity || 0;
@@ -140,14 +148,18 @@ export function ProductDetailScreen() {
             >
               <ProductPhoto
                 key={id + p.imageUrl}
+                productId={p.id}
+                barcode={p.barcode}
                 name={p.name}
                 category={p.category}
                 artwork={p.artwork}
                 imageUrl={p.imageUrl}
+                imageThumbnailUrl={p.imageThumbnailUrl}
+                imageSource={p.imageSource}
                 width={imageSize}
                 height={imageSize}
                 detail
-                onRepresentative={setRepresentative}
+                onPhotoChange={photoChanged}
               />
               {!!discount && (
                 <View
@@ -166,9 +178,16 @@ export function ProductDetailScreen() {
                 </View>
               )}
             </View>
-            {representative && (
+            {!photo.available && (
               <T size={11} color={C.muted} style={{ textAlign: "center" }}>
-                Representative image · Brand and packaging may vary
+                A verified product photo is not available yet
+              </T>
+            )}
+            {photo.available && photo.source && (
+              <T size={11} color={C.muted} style={{ textAlign: "center" }}>
+                Photo: {photo.source.provider} · {photo.source.license}
+                {"\n"}
+                {photo.source.url}
               </T>
             )}
             <View style={{ gap: 10 }}>

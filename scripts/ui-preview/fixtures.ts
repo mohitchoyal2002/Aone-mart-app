@@ -1,5 +1,6 @@
 // Clearly labelled sample catalog for local visual verification only.
 import bannerPoster from "../../apps/mobile/assets/motion/market-poster.jpg";
+import barcodePhoto from "./assets/barcode-nutella.jpg";
 import type { Product } from "../../apps/mobile/src/types";
 export const user = {
   id: "preview-user",
@@ -9,18 +10,27 @@ export const user = {
   points: 65,
   createdAt: "2026-10-01T12:00:00Z",
 };
-const entries = [
-  ["Premium basmati rice", "1 kg", "rice", 19800, 22000, "Staples"],
-  ["Fresh toned milk", "500 ml", "milk", 3200, 3500, "Dairy"],
-  ["Sunflower cooking oil", "1 litre", "oil", 14500, 16500, "Staples"],
-  ["Fresh red apples", "500 g", "fruit", 8900, 10000, "Fresh produce"],
-  ["Garden broccoli", "250 g", "vegetable", 4800, 5500, "Fresh produce"],
-  ["Whole wheat bread", "400 g", "bread", 4500, 5000, "Bakery"],
-  ["Chocolate cookies", "150 g", "snack", 6500, 7000, "Snacks"],
-  ["Premium tea", "250 g", "tea", 13500, 15000, "Beverages"],
-  ["Gentle bathing soap", "100 g", "soap", 3800, 4000, "Personal care"],
-  ["Atta flour", "5 kg", "bag", 22500, 25000, "Staples"],
-] as const;
+const entries = new URLSearchParams(location.search).has("photoRegression")
+  ? ([
+      ["365 DAYS PRNNI PASTA 250GM", "Pack", "bag", 1800, 3500, "General"],
+      ["420 CHANA CHATPATA PAPAD", "Pack", "bag", 4500, 6600, "General"],
+      ["420 MOONG PUNJABI MASALA PAPAD", "Pack", "bag", 5500, 7700, "General"],
+      ["420 MOONG SPECIAL PAPAD", "Pack", "bag", 4500, 6900, "General"],
+      ["5STAR OREO 20MRP", "Pack", "bag", 1900, 2000, "General"],
+      ["A ONE AGARBATTI 180G", "Pack", "bag", 2900, 4000, "General"],
+    ] as const)
+  : ([
+      ["Premium basmati rice", "1 kg", "rice", 19800, 22000, "Staples"],
+      ["Fresh toned milk", "500 ml", "milk", 3200, 3500, "Dairy"],
+      ["Sunflower cooking oil", "1 litre", "oil", 14500, 16500, "Staples"],
+      ["Fresh red apples", "500 g", "fruit", 8900, 10000, "Fresh produce"],
+      ["Garden broccoli", "250 g", "vegetable", 4800, 5500, "Fresh produce"],
+      ["Whole wheat bread", "400 g", "bread", 4500, 5000, "Bakery"],
+      ["Chocolate cookies", "150 g", "snack", 6500, 7000, "Snacks"],
+      ["Premium tea", "250 g", "tea", 13500, 15000, "Beverages"],
+      ["Gentle bathing soap", "100 g", "soap", 3800, 4000, "Personal care"],
+      ["Atta flour", "5 kg", "bag", 22500, 25000, "Staples"],
+    ] as const);
 export const categories = [...new Set(entries.map((e) => e[5]))].map(
   (name, index) => ({ id: `c${index}`, name, icon: "bag" }),
 );
@@ -38,7 +48,12 @@ export const products: Product[] = entries.map((e, index) => ({
   lowStockThreshold: 5,
   imageUrl: "",
 }));
-// Verify a failed admin image still falls back to the offline photo library.
+// Preview-only fixtures: exact barcode photo and honest failed-image placeholder.
+if (new URLSearchParams(location.search).has("barcodePhotos")) {
+  products[0].name = "Nutella 400 g";
+  products[0].unit = "400 g";
+  products[0].barcode = "03017620422003";
+}
 if (new URLSearchParams(location.search).has("brokenPhoto"))
   products[0].imageUrl = "http://127.0.0.1:4173/missing-product-photo.webp";
 export const store = {
@@ -173,6 +188,25 @@ export const api = {
     throw new Error(`Preview route missing: ${path}`);
   },
   async post(path: string, body: any): Promise<any> {
+    if (path === "/api/catalog/product-images")
+      return {
+        images: body.ids.map((id: string) => ({
+          id,
+          status: "matched",
+          imageUrl: new URLSearchParams(location.search).has("brokenFull")
+            ? "http://127.0.0.1:4173/missing-full-photo.jpg"
+            : barcodePhoto,
+          imageThumbnailUrl: barcodePhoto,
+          retryAfter: 0,
+          imageSource: {
+            provider: "Open Food Facts",
+            license: "CC BY-SA 3.0",
+            barcode: "03017620422003",
+            url: "https://world.openfoodfacts.org/product/3017620422003",
+            productName: "Nutella",
+          },
+        })),
+      };
     if (path === "/api/orders/quote") return { quote: quote(body) };
     if (path === "/api/orders") {
       const q = quote(body),

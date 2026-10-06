@@ -224,7 +224,13 @@ export async function createOrder(input: Cart, user: User, key: string) {
       stamp,
       stamp,
     );
-    for (const p of quote.products)
+    for (const p of quote.products) {
+      const matched = p.image_url
+        ? undefined
+        : await row(
+            "SELECT i.image_url FROM product_barcodes b JOIN product_image_cache i ON i.barcode=b.barcode WHERE b.product_id=?",
+            p.id,
+          );
       await run(
         "INSERT INTO order_items VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
         id(),
@@ -233,13 +239,14 @@ export async function createOrder(input: Cart, user: User, key: string) {
         p.sku,
         p.name,
         p.unit,
-        p.image_url,
+        p.image_url || matched?.image_url || "",
         p.artwork,
         p.quantity,
         p.price,
         p.cost,
         p.lineTotal,
       );
+    }
     await run(
       "INSERT INTO order_events VALUES(?,?,?,?,?)",
       id(),

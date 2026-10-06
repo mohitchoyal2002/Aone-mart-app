@@ -122,6 +122,171 @@ test("admin endpoints reject missing credentials and customer roles", async () =
     401,
   );
 });
+test("barcode photos require login, reuse exact matches and preserve merchant image priority", async () => {
+  const barcode = "03017620422003";
+  const payload = {
+    sku: "PHOTO-ERP-SKU",
+    barcode: "3017620422003",
+    name: "Nutella 400g",
+    categoryId,
+    price: 100,
+    mrp: 120,
+    stock: 11,
+    unit: "400 g",
+    imageUrl: "",
+  };
+  const created = await request(app)
+    .post("/api/admin/inventory")
+    .set(auth())
+    .send(payload);
+  assert.equal(created.status, 201);
+  const pid = created.body.product.id;
+  assert.equal(created.body.product.barcode, barcode);
+  assert.equal(
+    (
+      await request(app)
+        .post("/api/catalog/product-images")
+        .send({ ids: [pid] })
+    ).status,
+    401,
+  );
+  const source = {
+    provider: "Open Food Facts",
+    url: "https://world.openfoodfacts.org/product/3017620422003",
+    license: "CC BY-SA 3.0",
+    barcode,
+    productName: "Nutella",
+  };
+  await run(
+    "INSERT INTO product_image_cache VALUES(?,?,?,?,?)",
+    barcode,
+    "https://images.openfoodfacts.org/front.full.jpg",
+    "https://images.openfoodfacts.org/front.400.jpg",
+    JSON.stringify(source),
+    Date.now(),
+  );
+  const photos = await request(app)
+    .post("/api/catalog/product-images")
+    .set(auth(customerToken))
+    .send({ ids: [pid] });
+  assert.equal(photos.status, 200);
+  assert.equal(photos.body.images[0].imageSource.barcode, barcode);
+  const detail = await request(app)
+    .get(`/api/catalog/products/${pid}`)
+    .set(auth(customerToken));
+  assert.equal(
+    detail.body.product.imageUrl,
+    "https://images.openfoodfacts.org/front.full.jpg",
+  );
+  assert.equal(
+    detail.body.product.imageThumbnailUrl,
+    "https://images.openfoodfacts.org/front.400.jpg",
+  );
+  assert.equal(detail.body.product.price, 10000);
+  assert.equal(detail.body.product.cost, undefined);
+  assert.equal(detail.body.product.stock, undefined);
+  assert.equal(detail.body.product.merchantImageUrl, undefined);
+  const merchant = "https://mart.example/actual-nutella.jpg";
+  await request(app)
+    .put(`/api/admin/inventory/${pid}`)
+    .set(auth())
+    .send({ ...payload, imageUrl: merchant });
+  const manual = await request(app)
+    .get(`/api/catalog/products/${pid}`)
+    .set(auth(customerToken));
+  assert.equal(manual.body.product.imageUrl, merchant);
+  assert.equal(manual.body.product.imageSource, null);
+  await request(app)
+    .put(`/api/admin/inventory/${pid}`)
+    .set(auth())
+    .send({ ...payload, barcode: "4002293401102" });
+  const changed = await request(app)
+    .get(`/api/catalog/products/${pid}`)
+    .set(auth(customerToken));
+  assert.equal(
+    changed.body.product.imageUrl,
+    "",
+    "a changed barcode must not keep the old product photo",
+  );
+  assert.equal(
+    (await row("SELECT stock FROM products WHERE id=?", pid))!.stock,
+    11,
+  );
+  await request(app).delete(`/api/admin/inventory/${pid}`).set(auth());
+  const hidden = await request(app)
+    .post("/api/catalog/product-images")
+    .set(auth(customerToken))
+    .send({ ids: [pid] });
+  assert.deepEqual(hidden.body.images, []);
+});
+test("an EAN column survives CSV imports independently of the internal ERP SKU", async () => {
+  const csv =
+    "sku,name,category,price,mrp,stock,EAN,unit\nPHOTO-CSV,Real branded product,Groceries,29,40,13,3017620422003,400 g\n";
+  const preview = await request(app)
+    .post("/api/admin/imports/preview")
+    .set(auth())
+    .field("type", "products")
+    .attach("file", Buffer.from(csv), "barcode-products.csv");
+  assert.equal(preview.status, 201);
+  assert.equal(preview.body.preview.rows[0].barcode, "3017620422003");
+  const commit = await request(app)
+    .post(`/api/admin/imports/${preview.body.preview.id}/commit`)
+    .set(auth())
+    .send({ adjustInventory: false });
+  assert.equal(commit.status, 200);
+  const product = (await row(
+    "SELECT id,sku FROM products WHERE sku='PHOTO-CSV'",
+  ))!;
+  assert.equal(product.sku, "PHOTO-CSV");
+  assert.equal(
+    (await row(
+      "SELECT barcode FROM product_barcodes WHERE product_id=?",
+      product.id,
+    ))!.barcode,
+    "03017620422003",
+  );
+});
+test("adding a real EAN to a zero-barcode POS row upgrades the existing product without duplicate stock", async () => {
+  const csv = (code: string, stock: number) =>
+    `Barcode,NameToDisplay,Category,SaleRate,MRP,Curr.Qty,Unit1\n${code},Photo Barcode Upgrade,Groceries,29,40,${stock},Pack\n`;
+  async function importFile(code: string, stock: number) {
+    const preview = await request(app)
+      .post("/api/admin/imports/preview")
+      .set(auth())
+      .field("type", "products")
+      .attach("file", Buffer.from(csv(code, stock)), "pos-barcode-upgrade.csv");
+    assert.equal(preview.status, 201);
+    const commit = await request(app)
+      .post(`/api/admin/imports/${preview.body.preview.id}/commit`)
+      .set(auth())
+      .send({ adjustInventory: false });
+    assert.equal(commit.status, 200);
+  }
+  await importFile("0", 4);
+  const old = (await row(
+    "SELECT id FROM products WHERE name='Photo Barcode Upgrade'",
+  ))!;
+  await run(
+    "UPDATE products SET reserved=1,cost=1900,image_url=? WHERE id=?",
+    "https://mart.example/upgrade.jpg",
+    old.id,
+  );
+  await importFile("4002293401102", 3);
+  const updated = (await row(
+    "SELECT * FROM products WHERE sku='4002293401102'",
+  ))!;
+  assert.equal(updated.id, old.id);
+  assert.equal(updated.stock, 3);
+  assert.equal(updated.reserved, 1);
+  assert.equal(updated.cost, 1900);
+  assert.equal(updated.image_url, "https://mart.example/upgrade.jpg");
+  assert.equal(
+    (await row(
+      "SELECT count(*) count FROM products WHERE name='Photo Barcode Upgrade'",
+    ))!.count,
+    1,
+  );
+});
 test("catalog conceals costs and supports search", async () => {
   const r = await request(app)
     .get("/api/catalog/products?q=Rice")
@@ -948,8 +1113,9 @@ test("sales CSV export and store settings are available only to administrators",
     .send(settings.body.store);
 });
 test("authenticated realtime delivers the custom tone and stops a revoked session", async () => {
-  const { attachRealtime, queueNotification, publishPending } =
-    await import("../src/notifications.js");
+  const { attachRealtime, queueNotification, publishPending } = await import(
+    "../src/notifications.js"
+  );
   const session = await request(app)
     .post("/api/auth/login")
     .send({ phone: "9999999999", password: pass, role: "admin" });
