@@ -775,6 +775,8 @@ export function CartScreen() {
                 name={line.product.name}
                 category={line.product.category}
                 productId={line.product.id}
+                unit={line.product.unit}
+                sku={line.product.sku}
                 barcode={line.product.barcode}
                 imageThumbnailUrl={line.product.imageThumbnailUrl}
                 imageSource={line.product.imageSource}

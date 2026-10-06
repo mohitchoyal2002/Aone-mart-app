@@ -1113,9 +1113,8 @@ test("sales CSV export and store settings are available only to administrators",
     .send(settings.body.store);
 });
 test("authenticated realtime delivers the custom tone and stops a revoked session", async () => {
-  const { attachRealtime, queueNotification, publishPending } = await import(
-    "../src/notifications.js"
-  );
+  const { attachRealtime, queueNotification, publishPending } =
+    await import("../src/notifications.js");
   const session = await request(app)
     .post("/api/auth/login")
     .send({ phone: "9999999999", password: pass, role: "admin" });
@@ -1607,4 +1606,103 @@ test("analytics handles empty periods without invented growth and remains admin-
     ).status,
     400,
   );
+});
+
+test("Owned product photos enforce admin access, preserve stock, serve small thumbnails and retain immutable replacements through inventory imports", async () => {
+  const sharp = (await import("sharp")).default;
+  const cat = randomUUID(),
+    pid = randomUUID(),
+    sku = `OWNED-PHOTO-${randomUUID()}`;
+  await run("INSERT INTO categories(id,name) VALUES(?,?)", cat, cat);
+  await run(
+    "INSERT INTO products(id,sku,name,category_id,price,mrp,stock,reserved,unit,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+    pid,
+    sku,
+    "Local Brand Photo Product",
+    cat,
+    2900,
+    4000,
+    15,
+    2,
+    "180 g",
+    now(),
+    now(),
+  );
+  const path = `/api/admin/inventory/${pid}/photo`;
+  assert.equal((await request(app).post(path)).status, 401);
+  assert.equal(
+    (await request(app).post(path).set(auth(otherToken))).status,
+    403,
+  );
+  assert.equal(
+    (
+      await request(app)
+        .post(path)
+        .set(auth())
+        .attach("file", Buffer.from("not a photo"), "fake.jpg")
+    ).status,
+    422,
+  );
+  const oversized = await request(app)
+    .post(path)
+    .set(auth())
+    .attach("file", Buffer.alloc(1024 * 1024 + 1), "large.jpg");
+  assert.equal(oversized.status, 413);
+  assert.match(oversized.body.error, /product photo.*1 MB/);
+  const png = await sharp({
+    create: { width: 1200, height: 900, channels: 3, background: "#F4CF78" },
+  })
+    .png()
+    .toBuffer();
+  const upload = await request(app)
+    .post(path)
+    .set(auth())
+    .attach("file", png, "real.png");
+  assert.equal(upload.status, 201);
+  const p = upload.body.product;
+  assert.ok(p.imageThumbnailUrl.endsWith("?size=thumb"));
+  const imagePath = new URL(p.imageUrl).pathname;
+  const full = await request(app).get(imagePath),
+    thumb = await request(app).get(imagePath + "?size=thumb");
+  assert.equal(full.status, 200);
+  assert.equal(thumb.status, 200);
+  assert.equal((await sharp(full.body).metadata()).width, 1200);
+  assert.equal((await sharp(thumb.body).metadata()).width, 384);
+  assert.match(full.headers["cache-control"], /immutable/);
+  const changed = await request(app)
+    .post(path)
+    .set(auth())
+    .attach("file", png, "replacement.png");
+  assert.equal(changed.status, 201);
+  assert.notEqual(changed.body.product.imageUrl, p.imageUrl);
+  assert.equal((await request(app).get(imagePath)).status, 200);
+  const csv = `sku,name,category,price,mrp,cost,stock,unit\n${sku},Local Brand Photo Product,${cat},29,40,10,18,180 g`;
+  const preview = await request(app)
+    .post("/api/admin/imports/preview")
+    .set(auth())
+    .field("type", "products")
+    .attach("file", Buffer.from(csv), "no-images.csv");
+  assert.equal(preview.status, 201);
+  assert.equal(
+    (
+      await request(app)
+        .post(`/api/admin/imports/${preview.body.preview.id}/commit`)
+        .set(auth())
+    ).status,
+    200,
+  );
+  const saved = (await row("SELECT * FROM products WHERE id=?", pid))!;
+  assert.equal(saved.image_url, changed.body.product.imageUrl);
+  assert.equal(saved.stock, 18);
+  assert.equal(saved.reserved, 2);
+  assert.equal(saved.price, 2900);
+  const customer = await request(app)
+    .get(`/api/catalog/products/${pid}`)
+    .set(auth(otherToken));
+  assert.equal(customer.body.product.imageUrl, changed.body.product.imageUrl);
+  assert.equal(
+    customer.body.product.imageThumbnailUrl,
+    changed.body.product.imageThumbnailUrl,
+  );
+  assert.equal(customer.body.product.merchantImageUrl, undefined);
 });

@@ -104,7 +104,10 @@ export const api = {
     const controller = new AbortController();
     const timeout = setTimeout(
       () => controller.abort(),
-      isForm || path.includes("/ai/") || path.includes("/preview")
+      isForm ||
+        path.includes("/ai/") ||
+        path.includes("/preview") ||
+        path === "/api/catalog/product-images"
         ? 60000
         : 15000,
     );

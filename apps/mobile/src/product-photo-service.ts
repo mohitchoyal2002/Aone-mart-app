@@ -11,7 +11,7 @@ export type ResolvedPhoto = {
   retryAfter: number;
 };
 type Entry = {
-  barcode: string;
+  identity: string;
   photo?: ResolvedPhoto;
   listeners: Set<() => void>;
   due: number;
@@ -76,13 +76,21 @@ export function clearResolvedProductPhotos() {
   timer = undefined;
   for (const listener of listeners) listener();
 }
-export function useResolvedProductPhoto(id = "", barcode = "", imageUrl = "") {
+export function useResolvedProductPhoto(
+  id = "",
+  barcode = "",
+  imageUrl = "",
+  name = "",
+  unit = "",
+  sku = "",
+) {
+  const identity = JSON.stringify([barcode, name, unit, sku]);
   const subscribe = useCallback(
     (listener: () => void) => {
-      if (!id || !barcode || imageUrl) return () => {};
+      if (!id || !name || imageUrl) return () => {};
       let entry = entries.get(id);
-      if (!entry || entry.barcode !== barcode) {
-        entry = { barcode, listeners: new Set(), due: Date.now() };
+      if (!entry || entry.identity !== identity) {
+        entry = { identity, listeners: new Set(), due: Date.now() };
         entries.set(id, entry);
       }
       entry.listeners.add(listener);
@@ -91,11 +99,11 @@ export function useResolvedProductPhoto(id = "", barcode = "", imageUrl = "") {
         entry.listeners.delete(listener);
       };
     },
-    [id, barcode, imageUrl],
+    [id, identity, name, imageUrl],
   );
   const snapshot = useCallback(() => {
     const entry = entries.get(id);
-    return !imageUrl && entry?.barcode === barcode ? entry.photo : undefined;
-  }, [id, barcode, imageUrl]);
+    return !imageUrl && entry?.identity === identity ? entry.photo : undefined;
+  }, [id, identity, imageUrl]);
   return useSyncExternalStore(subscribe, snapshot, snapshot);
 }

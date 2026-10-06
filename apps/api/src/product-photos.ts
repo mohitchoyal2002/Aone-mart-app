@@ -1,4 +1,5 @@
-import { row, rows, run } from "./db.js";
+import { resolveNamePhotos } from "./name-photos.js";
+import { rows, run, transaction, batchRun } from "./db.js";
 import { DatabaseRateStore } from "./rate-store.js";
 import { normalizeBarcode, barcodeAliases } from "./barcodes.js";
 
@@ -8,6 +9,7 @@ export type PhotoSource = {
   license: string;
   barcode: string;
   productName: string;
+  matchMethod?: "barcode" | "name";
 };
 export type VerifiedPhoto = {
   imageUrl: string;
@@ -26,7 +28,7 @@ const providers = [
   },
 ];
 const agent =
-  "AoneMart/1.2.1 (https://github.com/mohitchoyal2002/Aone-mart-app)";
+  "AoneMart/1.2.2 (https://github.com/mohitchoyal2002/Aone-mart-app)";
 const inFlight = new Map<string, Promise<void>>();
 
 function httpsImage(value: unknown, host?: string): string {
@@ -140,43 +142,45 @@ async function savePhoto(barcode: string, photo: VerifiedPhoto) {
     Date.now(),
   );
 }
-async function recordAttempt(
-  barcode: string,
+async function recordAttempts(
+  barcodes: string[],
   provider: string,
   success: boolean,
 ) {
-  await run(
-    `INSERT INTO product_image_lookups(barcode,provider,retry_at,completed) VALUES(?,?,?,?)
-     ON CONFLICT(barcode,provider) DO UPDATE SET retry_at=excluded.retry_at,completed=excluded.completed`,
-    barcode,
-    provider,
-    Date.now() + (success ? 7 * DAY : 10 * 60000),
-    success ? 1 : 0,
+  const retryAt = Date.now() + (success ? 7 * DAY : 10 * 60000);
+  await transaction(() =>
+    batchRun(
+      barcodes.map((barcode) => ({
+        sql: `INSERT INTO product_image_lookups(barcode,provider,retry_at,completed) VALUES(?,?,?,?)
+      ON CONFLICT(barcode,provider) DO UPDATE SET retry_at=excluded.retry_at,completed=excluded.completed`,
+        args: [barcode, provider, retryAt, success ? 1 : 0],
+      })),
+    ),
   );
 }
 async function due(barcodes: string[], provider: string): Promise<string[]> {
-  const result: string[] = [];
-  for (const barcode of barcodes) {
-    if (
-      await row(
-        "SELECT barcode FROM product_image_cache WHERE barcode=?",
-        barcode,
-      )
-    )
-      continue;
-    const attempt = await row(
-      "SELECT retry_at FROM product_image_lookups WHERE barcode=? AND provider=?",
-      barcode,
-      provider,
-    );
-    if (!attempt || attempt.retry_at <= Date.now()) result.push(barcode);
-  }
-  return result;
+  if (!barcodes.length) return [];
+  const marks = barcodes.map(() => "?").join(",");
+  const cached = await rows(
+    `SELECT barcode FROM product_image_cache WHERE barcode IN (${marks})`,
+    ...barcodes,
+  );
+  const attempts = await rows(
+    `SELECT barcode FROM product_image_lookups WHERE provider=? AND retry_at>? AND barcode IN (${marks})`,
+    provider,
+    Date.now(),
+    ...barcodes,
+  );
+  const skip = new Set([...cached, ...attempts].map((p) => p.barcode));
+  return barcodes.filter((b) => !skip.has(b));
 }
 async function lookupBatch(barcodes: string[]) {
   for (const provider of providers) {
     const pending = await due(barcodes, provider.id);
-    if (!pending.length || !(await budget(`${provider.id}:search`, 6)))
+    if (
+      !pending.length ||
+      !(await budget(`${provider.id}:search`, provider.id === "food" ? 3 : 6))
+    )
       continue;
     const food = provider.id === "food";
     const url = new URL(
@@ -200,10 +204,43 @@ async function lookupBatch(barcodes: string[]) {
     );
     url.searchParams.set("page_size", "100");
     try {
-      const data = await request(url);
-      const candidates = food ? data.hits : data.products;
-      if (!Array.isArray(candidates))
-        throw new Error("Unexpected photo catalog response");
+      let candidates: Item[] = [];
+      let complete = false;
+      try {
+        const data = await request(url);
+        candidates = food ? data.hits : data.products;
+        if (!Array.isArray(candidates))
+          throw new Error("Unexpected photo catalog response");
+        complete = !food;
+      } catch (error) {
+        if (!food) throw error;
+        candidates = [];
+      }
+      if (food) {
+        const missing = pending.filter(
+          (b) => !candidates.some((c) => selectBarcodePhoto(b, c, provider)),
+        );
+        if (missing.length) {
+          // Search indexes can lag new products. Confirm misses against the
+          // current catalog before negative-caching an EAN as unavailable.
+          const live = new URL("https://world.openfoodfacts.org/api/v2/search");
+          live.searchParams.set(
+            "code",
+            missing.flatMap(barcodeAliases).join(","),
+          );
+          live.searchParams.set("fields", url.searchParams.get("fields")!);
+          live.searchParams.set("page_size", "100");
+          try {
+            const data = await request(live);
+            if (!Array.isArray(data.products))
+              throw new Error("Unexpected live photo catalog response");
+            candidates.push(...data.products);
+            complete = true;
+          } catch {
+            complete = false;
+          }
+        } else complete = true;
+      }
       for (const barcode of pending) {
         for (const candidate of candidates) {
           const photo = selectBarcodePhoto(barcode, candidate, provider);
@@ -212,11 +249,10 @@ async function lookupBatch(barcodes: string[]) {
             break;
           }
         }
-        await recordAttempt(barcode, provider.id, true);
       }
+      await recordAttempts(pending, provider.id, complete);
     } catch {
-      for (const barcode of pending)
-        await recordAttempt(barcode, provider.id, false);
+      await recordAttempts(pending, provider.id, false);
     }
   }
   // Free UPCitemdb broadens coverage beyond food/cosmetics. Never create a paid
@@ -247,11 +283,10 @@ async function lookupBatch(barcodes: string[]) {
           break;
         }
       }
-      await recordAttempt(barcode, "upcitemdb", true);
     }
+    await recordAttempts(pending, "upcitemdb", true);
   } catch {
-    for (const barcode of pending)
-      await recordAttempt(barcode, "upcitemdb", false);
+    await recordAttempts(pending, "upcitemdb", false);
   }
 }
 
@@ -268,14 +303,16 @@ export async function resolveProductPhotos(products: Item[]) {
         .filter(Boolean),
     ),
   ];
-  for (const { product, barcode } of identities)
-    if (barcode)
-      await run(
-        `INSERT INTO product_barcodes(product_id,barcode) VALUES(?,?)
-      ON CONFLICT(product_id) DO NOTHING`,
-        product.id,
-        barcode,
-      );
+  const identifiers = identities.filter((i) => i.barcode && !i.product.barcode);
+  if (identifiers.length)
+    await transaction(() =>
+      batchRun(
+        identifiers.map(({ product, barcode }) => ({
+          sql: "INSERT INTO product_barcodes(product_id,barcode) VALUES(?,?) ON CONFLICT(product_id) DO NOTHING",
+          args: [product.id, barcode],
+        })),
+      ),
+    );
   const key = [...barcodes].sort().join(",");
   if (key) {
     let work = inFlight.get(key);
@@ -285,28 +322,36 @@ export async function resolveProductPhotos(products: Item[]) {
     }
     await work;
   }
-  const images = [];
+  const images: Record<string, any>[] = [];
+  const marks = barcodes.map(() => "?").join(",");
+  const cached = barcodes.length
+    ? await rows(
+        `SELECT * FROM product_image_cache WHERE barcode IN (${marks})`,
+        ...barcodes,
+      )
+    : [];
+  const lookupStates = barcodes.length
+    ? await rows(
+        `SELECT barcode,provider,retry_at,completed FROM product_image_lookups WHERE barcode IN (${marks})`,
+        ...barcodes,
+      )
+    : [];
+  const photos = new Map(cached.map((p) => [p.barcode, p]));
   for (const { product, barcode } of identities) {
     if (product.image_url) {
       images.push({
         id: product.id,
         status: "matched",
         imageUrl: product.image_url,
-        imageThumbnailUrl: product.image_url,
+        imageThumbnailUrl:
+          product.image_url + (product.uploaded_image_id ? "?size=thumb" : ""),
         imageSource: null,
         retryAfter: 0,
       });
       continue;
     }
-    const photo = barcode
-      ? await row("SELECT * FROM product_image_cache WHERE barcode=?", barcode)
-      : undefined;
-    const attempts = barcode
-      ? await rows(
-          "SELECT provider,retry_at,completed FROM product_image_lookups WHERE barcode=?",
-          barcode,
-        )
-      : [];
+    const photo = photos.get(barcode);
+    const attempts = lookupStates.filter((a) => a.barcode === barcode);
     const complete =
       attempts.length === 4 &&
       attempts.every((a) => a.completed && a.retry_at > Date.now());
@@ -326,5 +371,30 @@ export async function resolveProductPhotos(products: Item[]) {
       retryAfter: photo || !barcode || complete ? 0 : 60,
     });
   }
-  return images;
+  const byName = await resolveNamePhotos(
+    identities
+      .filter(
+        ({ product }) =>
+          !images.some((i) => i.id === product.id && i.status === "matched"),
+      )
+      .map(({ product, barcode }) => ({ ...product, barcode })),
+  );
+  return images.map((i) => {
+    if (i.status === "matched") return i;
+    const match = byName.find((n) => n.id === i.id);
+    if (!match)
+      return {
+        ...i,
+        status: i.status === "no_barcode" ? "unavailable" : i.status,
+      };
+    if (match.status === "matched") return match;
+    return {
+      ...match,
+      status:
+        i.status === "pending" || match.status === "pending"
+          ? "pending"
+          : "unavailable",
+      retryAfter: Math.max(i.retryAfter, match.retryAfter),
+    };
+  });
 }

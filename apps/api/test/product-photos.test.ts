@@ -9,9 +9,8 @@ delete process.env.VERCEL;
 process.env.JWT_SECRET =
   "product-photos-tests-only-secret-aaaaaaaaaaaaaaaaaaaa";
 const { normalizeBarcode, barcodeAliases } = await import("../src/barcodes.js");
-const { selectBarcodePhoto, resolveProductPhotos } = await import(
-  "../src/product-photos.js"
-);
+const { selectBarcodePhoto, resolveProductPhotos } =
+  await import("../src/product-photos.js");
 const { run, row, now, db } = await import("../src/db.js");
 const food = { id: "food", name: "Open Food Facts", host: "openfoodfacts.org" };
 const code = "3017620422003",
@@ -22,6 +21,7 @@ const front =
 beforeEach(async () => {
   mock.restoreAll();
   for (const table of [
+    "product_name_photos",
     "product_barcodes",
     "product_image_cache",
     "product_image_lookups",
@@ -41,7 +41,7 @@ async function product(sku = code, extra: Record<string, unknown> = {}) {
     "INSERT INTO products(id,sku,name,category_id,price,mrp,stock,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
     id,
     `${sku}-${id}`,
-    "Real imported product",
+    "Product",
     category,
     100,
     100,
@@ -49,7 +49,7 @@ async function product(sku = code, extra: Record<string, unknown> = {}) {
     now(),
     now(),
   );
-  return { id, sku, name: "Real imported product", image_url: "", ...extra };
+  return { id, sku, name: "Product", image_url: "", ...extra };
 }
 function fakeFetch(fn: (url: URL) => Record<string, unknown> | number) {
   return mock.method(globalThis, "fetch", async (input: any) => {
@@ -195,9 +195,9 @@ test("Unavailable barcodes stay empty and negative caching avoids repeated provi
   const images = await resolveProductPhotos([p]);
   assert.equal(images[0].status, "unavailable");
   assert.equal(images[0].imageUrl, "");
-  assert.equal(fetch.mock.callCount(), 4);
+  assert.equal(fetch.mock.callCount(), 5);
   await resolveProductPhotos([p]);
-  assert.equal(fetch.mock.callCount(), 4);
+  assert.equal(fetch.mock.callCount(), 5);
 });
 test("Provider rate limits are recoverable and never cause catalog failure or wrong fallback photos", async () => {
   const p = await product();
@@ -207,9 +207,9 @@ test("Provider rate limits are recoverable and never cause catalog failure or wr
   assert.equal(image.imageUrl, "");
   assert.equal(image.retryAfter, 60);
   await resolveProductPhotos([p]);
-  assert.equal(fetch.mock.callCount(), 4);
+  assert.equal(fetch.mock.callCount(), 5);
 });
-test("Products with missing/internal barcodes and merchant photos never contact external catalogs", async () => {
+test("Unidentifiable generic names and merchant photos never contact external catalogs", async () => {
   const p = await product("POS-PAPAD"),
     merchant = await product("ERP-12", {
       image_url: "https://mart.example/real.jpg",
@@ -218,7 +218,7 @@ test("Products with missing/internal barcodes and merchant photos never contact 
     throw new Error("Unexpected catalog request");
   });
   const images = await resolveProductPhotos([p, merchant]);
-  assert.equal(images[0].status, "no_barcode");
+  assert.equal(images[0].status, "unavailable");
   assert.equal(images[1].imageUrl, merchant.image_url);
   assert.equal(fetch.mock.callCount(), 0);
 });

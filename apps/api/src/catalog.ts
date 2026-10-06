@@ -43,11 +43,13 @@ export const productSchema = z
   })
   .strict()
   .refine((d) => d.mrp >= d.price, "MRP must be at least the selling price");
-export const productSelect = `SELECT p.*,c.name category,b.barcode,
-  i.image_url matched_image_url,i.thumbnail_url matched_thumbnail_url,i.source_json image_source
+export const productSelect = `SELECT p.*,c.name category,b.barcode,u.id uploaded_image_id,
+  COALESCE(i.image_url,NULLIF(n.image_url,'')) matched_image_url,COALESCE(i.thumbnail_url,NULLIF(n.thumbnail_url,'')) matched_thumbnail_url,COALESCE(i.source_json,NULLIF(n.source_json,'')) image_source
   FROM products p JOIN categories c ON c.id=p.category_id
   LEFT JOIN product_barcodes b ON b.product_id=p.id
-  LEFT JOIN product_image_cache i ON i.barcode=b.barcode`;
+  LEFT JOIN product_image_cache i ON i.barcode=b.barcode
+  LEFT JOIN product_name_photos n ON n.product_id=p.id AND n.name=p.name AND n.unit=p.unit AND n.sku=p.sku AND n.barcode=COALESCE(b.barcode,'')
+  LEFT JOIN product_uploaded_images u ON u.product_id=p.id AND p.image_url LIKE '%/api/catalog/uploaded-product-images/' || u.id`;
 export const serializeProduct = (p: Record<string, any>) => ({
   id: p.id,
   sku: p.sku,
@@ -65,7 +67,9 @@ export const serializeProduct = (p: Record<string, any>) => ({
   unit: p.unit,
   merchantImageUrl: p.image_url,
   imageUrl: p.image_url || p.matched_image_url || "",
-  imageThumbnailUrl: p.image_url || p.matched_thumbnail_url || "",
+  imageThumbnailUrl: p.image_url
+    ? p.image_url + (p.uploaded_image_id ? "?size=thumb" : "")
+    : p.matched_thumbnail_url || "",
   imageSource:
     !p.image_url && p.image_source ? JSON.parse(p.image_source) : null,
   artwork: p.artwork,
