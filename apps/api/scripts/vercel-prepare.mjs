@@ -290,11 +290,10 @@ try {
   try {
     const { productSelect } = await import("../src/catalog.ts");
     const { resolveProductPhotos } = await import("../src/product-photos.ts");
-    const photos = await resolveProductPhotos(
-      await rows(
-        productSelect + " WHERE p.deleted_at IS NULL ORDER BY p.name LIMIT 24",
-      ),
+    const visibleProducts = await rows(
+      productSelect + " WHERE p.deleted_at IS NULL ORDER BY p.name LIMIT 24",
     );
+    const photos = await resolveProductPhotos(visibleProducts);
     console.log(
       "Product photo cache warmup:",
       JSON.stringify(
@@ -304,6 +303,18 @@ try {
         }, {}),
       ),
     );
+    const attempts = await rows("SELECT attempts_json FROM product_name_photos");
+    const providerStates = {};
+    for (const record of attempts) for (const [provider, state] of Object.entries(JSON.parse(record.attempts_json))) {
+      const key = `${provider}:${state.completed ? "completed" : "retrying"}`;
+      providerStates[key] = (providerStates[key] || 0) + 1;
+    }
+    console.log("Public name-photo provider states:", JSON.stringify(providerStates));
+    // Product names/units are customer-visible catalog data. Do not log ERP
+    // identifiers, prices, stock, customer records, auth tokens or provider errors.
+    console.log("Reported photo match diagnostics:", JSON.stringify(visibleProducts
+      .filter(p => /^(?:365 DAYS|420 |5STAR|A ONE AGARBATTI)/i.test(p.name)).slice(0, 8)
+      .map(p => ({ name: p.name, unit: p.unit, status: photos.find(i => i.id === p.id)?.status }))));
   } catch {
     console.log("Product photo warmup deferred; shopping remains available");
   }
