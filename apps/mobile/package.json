@@ -1,6 +1,6 @@
 {
   "name": "@aone/mobile",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "main": "expo-router/entry",
   "dependencies": {
     "@expo-google-fonts/dm-sans": "^0.4.2",

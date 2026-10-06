@@ -131,6 +131,42 @@ test("catalog conceals costs and supports search", async () => {
   assert.equal(r.body.products[0].price, 50000);
   assert.equal("cost" in r.body.products[0], false);
 });
+test("product details require login and hide internal inventory fields", async () => {
+  assert.equal(
+    (await request(app).get(`/api/catalog/products/${productId}`)).status,
+    401,
+  );
+  const detail = await request(app)
+    .get(`/api/catalog/products/${productId}`)
+    .set(auth(customerToken));
+  assert.equal(detail.status, 200);
+  assert.equal(detail.body.product.id, productId);
+  assert.equal(detail.body.product.price, 50000);
+  assert.equal(detail.body.product.available, 20);
+  for (const field of ["cost", "stock", "reserved"])
+    assert.equal(field in detail.body.product, false);
+  assert.equal(
+    (
+      await request(app)
+        .get("/api/catalog/products/unknown")
+        .set(auth(customerToken))
+    ).status,
+    404,
+  );
+  try {
+    await run("UPDATE products SET deleted_at=? WHERE id=?", now(), productId);
+    assert.equal(
+      (
+        await request(app)
+          .get(`/api/catalog/products/${productId}`)
+          .set(auth(customerToken))
+      ).status,
+      404,
+    );
+  } finally {
+    await run("UPDATE products SET deleted_at=NULL WHERE id=?", productId);
+  }
+});
 test("quote does not reserve stock; order reserves once with idempotent retries", async () => {
   const q = await request(app)
     .post("/api/orders/quote")

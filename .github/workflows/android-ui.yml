@@ -1,11 +1,5 @@
 name: Android Native Smoke
 on:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/android-ui.yml"
-      - "scripts/android-smoke.py"
-      - "scripts/download-apk-artifact.py"
   workflow_run:
     workflows: [Android APK]
     types: [completed]

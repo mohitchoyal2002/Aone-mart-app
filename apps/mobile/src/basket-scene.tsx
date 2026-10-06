@@ -179,7 +179,7 @@ export function BasketScene({
           style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
         >
           <Image
-            source={require("../assets/models/grocery-poster.png")}
+            source={require("../assets/models/grocery-poster.webp")}
             contentFit="contain"
             style={{ width, height }}
           />

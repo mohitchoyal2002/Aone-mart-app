@@ -30,7 +30,9 @@ else:
 if run["conclusion"] != "success":
     raise RuntimeError("Selected APK build did not succeed.")
 artifacts = get(f"actions/runs/{run['id']}/artifacts")["artifacts"]
-artifact = next(a for a in artifacts if a["name"] == "Aone-Mart-APK" and not a["expired"])
+artifact = next((a for a in artifacts if a["name"] == "Aone-Mart-APK-emulator" and not a["expired"]), None)
+if artifact is None:
+    artifact = next(a for a in artifacts if a["name"] == "Aone-Mart-APK" and not a["expired"])
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -64,4 +66,4 @@ if hashlib.sha256(apk).hexdigest() != expected:
 Path("ci-build.apk").write_bytes(apk)
 with open(os.environ["GITHUB_OUTPUT"], "a") as output:
     output.write(f"source_sha={run['head_sha']}\nrun_id={run['id']}\n")
-print(f"Verified APK from build {run['id']}, source {run['head_sha']}; {len(apk)} bytes.")
+print(f"Verified {artifact['name']} from build {run['id']}, source {run['head_sha']}; {len(apk)} bytes.")

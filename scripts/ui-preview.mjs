@@ -58,6 +58,7 @@ const compilePreview = () =>
       ".jpg": "file",
       ".gif": "file",
       ".mp4": "file",
+      ".webp": "file",
       ".ttf": "file",
     },
     assetNames: "assets/[name]-[hash]",
@@ -125,6 +126,7 @@ const types = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".mp4": "video/mp4",
+  ".webp": "image/webp",
   ".ttf": "font/ttf",
 };
 http

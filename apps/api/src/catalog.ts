@@ -102,6 +102,14 @@ catalogRouter.get("/products", async (req, res) => {
     offset,
   });
 });
+catalogRouter.get("/products/:id", async (req, res) => {
+  const product = await row(
+    productSelect + " WHERE p.id=? AND p.deleted_at IS NULL",
+    req.params.id,
+  );
+  if (!product) fail(404, "Product is no longer available.", "PRODUCT_NOT_FOUND");
+  res.json({ product: customerProduct(product!) });
+});
 export const inventoryRouter = Router();
 inventoryRouter.use(requireAuth, adminOnly);
 inventoryRouter.get("/", async (req, res) => {

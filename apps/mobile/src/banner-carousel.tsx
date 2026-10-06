@@ -1,5 +1,5 @@
 import { ActionPressable as Pressable, useMotion } from "./motion";
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, lazy, Suspense } from "react";
 import { View, ScrollView, useWindowDimensions } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -7,8 +7,11 @@ import { ChevronLeft, ChevronRight, Pause, Play } from "lucide-react-native";
 import { useIsFocused } from "expo-router";
 import { api } from "./api";
 import { C, T } from "./ui";
-import { BasketScene } from "./basket-scene";
 import type { Banner } from "./types";
+const BasketScene = lazy(() =>
+  import("./basket-scene").then((m) => ({ default: m.BasketScene })),
+);
+const basketPoster = require("../assets/models/grocery-poster.webp");
 
 export function BannerCarousel({
   banners = [],
@@ -49,7 +52,7 @@ function Carousel({
   const size = Math.min(width, 1100) - 44;
   const scroll = useRef<ScrollView>(null);
   const [index, setIndex] = useState(0),
-    [paused, setPaused] = useState(false);
+    [paused, setPaused] = useState(true);
   const [failed, setFailed] = useState<Record<string, boolean>>({});
   const slides = [
     ...banners.slice(0, 5),
@@ -140,7 +143,7 @@ function Carousel({
                 style={{
                   borderRadius: 28,
                   padding: 22,
-                  minHeight: 230,
+                  minHeight: 202,
                   overflow: "hidden",
                 }}
               >
@@ -180,13 +183,35 @@ function Carousel({
                   <View
                     style={{ position: "absolute", right: -45, bottom: -16 }}
                   >
-                    <BasketScene
-                      width={width < 360 ? 185 : 230}
-                      reaction={reaction}
-                      active={
-                        active && focused && !paused && index === position
-                      }
-                    />
+                    {active &&
+                    focused &&
+                    !paused &&
+                    index === position &&
+                    enabled ? (
+                      <Suspense
+                        fallback={
+                          <Image
+                            source={basketPoster}
+                            contentFit="contain"
+                            style={{ width: 230, height: 230 }}
+                          />
+                        }
+                      >
+                        <BasketScene
+                          width={width < 360 ? 185 : 230}
+                          reaction={reaction}
+                          active={
+                            active && focused && !paused && index === position
+                          }
+                        />
+                      </Suspense>
+                    ) : (
+                      <Image
+                        source={basketPoster}
+                        contentFit="contain"
+                        style={{ width: width < 360 ? 185 : 230, height: 230 }}
+                      />
+                    )}
                   </View>
                 )}
               </LinearGradient>

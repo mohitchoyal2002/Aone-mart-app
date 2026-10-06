@@ -4,7 +4,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "Aone Mart",
   slug: "aone-mart",
-  version: "1.1.1",
+  version: "1.2.0",
   scheme: "aonemart",
   platforms: ["android"],
   orientation: "default",
@@ -12,7 +12,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   icon: "./assets/aone-icon.png",
   android: {
     package: "com.aonemart.app",
-    versionCode: 7,
+    versionCode: 8,
     softwareKeyboardLayoutMode: "resize",
     permissions: ["POST_NOTIFICATIONS", "VIBRATE"],
     ...(existsSync("./google-services.json")
@@ -42,7 +42,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "expo-splash-screen",
       {
         image: "./assets/aone-splash.png",
-        imageWidth: 200,
+        imageWidth: 144,
         backgroundColor: "#14243D",
       },
     ],

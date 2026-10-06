@@ -9,6 +9,8 @@ on:
       - "scripts/prepare-native-anime.cjs"
       - "scripts/native-compatibility.test.cjs"
       - "scripts/mobile-uploads.test.cjs"
+      - "scripts/product-images.test.cjs"
+      - "scripts/package-android-apks.py"
       - ".github/workflows/android-apk.yml"
   workflow_dispatch:
 permissions:
@@ -43,6 +45,7 @@ jobs:
         run: |
           npm test
           node --test scripts/native-compatibility.test.cjs
+          node --test scripts/product-images.test.cjs
           npm run test:uploads
           npm run typecheck
           npm run lint -w @aone/mobile
@@ -76,10 +79,7 @@ jobs:
           ./gradlew assembleRelease --no-daemon --max-workers=2 -PreactNativeArchitectures=arm64-v8a,x86_64
       - name: Verify and package APK
         run: |
-          mkdir -p apk-output
-          cp apps/mobile/android/app/build/outputs/apk/release/app-release.apk apk-output/Aone-Mart-build.apk
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose apk-output/Aone-Mart-build.apk
-          sha256sum apk-output/Aone-Mart-build.apk > apk-output/SHA256.txt
+          python3 scripts/package-android-apks.py apps/mobile/android/app/build/outputs/apk/release/app-release.apk "$ANDROID_HOME/build-tools/36.0.0" apps/mobile/android/app/debug.keystore
           node --input-type=module <<'NODE'
           import { readFileSync, writeFileSync } from 'node:fs';
           const bytes = readFileSync('apk-output/Aone-Mart-build.apk');
@@ -94,6 +94,14 @@ jobs:
           path: |
             apk-output/Aone-Mart-build.apk
             apk-output/SHA256.txt
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Aone-Mart-APK-emulator
+          path: |
+            apk-emulator-output/Aone-Mart-build.apk
+            apk-emulator-output/SHA256.txt
           if-no-files-found: error
           retention-days: 30
       - uses: actions/upload-artifact@v4

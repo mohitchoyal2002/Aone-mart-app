@@ -270,7 +270,20 @@ try:
     wait("Home", desc=True)
     screenshot("03-customer-home")
     passed("Customer signup and native product grid")
-    # On narrow phones the animation control is below the first screenful.
+    # The initial home is a lightweight poster. No native GPU work starts
+    # until the customer explicitly presses Play.
+    native_log = adb("logcat", "-d", "-s", "ReactNativeJS").decode(errors="replace")
+    assert "Aone Mart basket scene rendered" not in native_log, "3D was initialized automatically at startup"
+    click("Play basket animation", desc=True)
+    wait("Pause basket animation", desc=True)
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        native_log = adb("logcat", "-d", "-s", "ReactNativeJS").decode(errors="replace")
+        if "Aone Mart basket scene rendered (Three.js + Anime.js)" in native_log:
+            break
+        time.sleep(1)
+    assert "Aone Mart basket scene rendered (Three.js + Anime.js)" in native_log, "The native 3D scene did not render any meshes"
+    passed("Startup keeps native 3D idle until Play")
     click("Pause basket animation", desc=True)
     wait("Play basket animation", desc=True)
     click("Play basket animation", desc=True)
@@ -299,9 +312,11 @@ try:
     # Scroll to the bundled film, exercise native player teardown and leave
     # the screen. The web preview cannot validate native player lifetime.
     for _ in range(14):
-        if find("Pause market video", desc=True) is not None:
+        if find("Play market video", desc=True) is not None:
             break
         scroll()
+    click("Play market video", desc=True)
+    wait("Pause market video", desc=True)
     click("Pause market video", desc=True)
     wait("Play market video", desc=True)
     click("Play market video", desc=True)
@@ -324,7 +339,16 @@ try:
     assert find("Home", desc=True) is None, "Customer navigation still consumes typing space"
     dismiss_keyboard()
     wait("Home", desc=True)
-    click("Add Basmati Rice to cart", desc=True)
+    click("View Basmati Rice", desc=True)
+    wait("Product details")
+    wait("Representative image · Brand and packaging may vary")
+    assert find("Home", desc=True) is None, "Product details is still inside the tab grid"
+    screenshot("03f-product-details")
+    click("Add to basket", desc=True)
+    wait("View basket, 1 items", desc=True)
+    click("Back to products", desc=True)
+    wait("Home", desc=True)
+    passed("Image-free imported product opens a full page and adds to the shared cart")
     # Cart announces its item count once populated, while its visible label
     # stays Cart. Text lookup matches both the empty and populated tab.
     click("Cart", exact=True)

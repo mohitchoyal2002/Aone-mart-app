@@ -1,6 +1,6 @@
 import { ActionPressable as Pressable, Reveal } from "./motion";
 import { AppDialog as Alert } from "./dialog-service";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   FlatList,
@@ -53,6 +53,7 @@ import {
   dateLabel,
 } from "./ui";
 import { ProductArt, artBackground } from "./art";
+import { rememberProducts } from "./product-cache";
 import { FormScroll } from "./keyboard-layout";
 import type {
   Category,
@@ -64,6 +65,9 @@ import type {
   Session,
 } from "./types";
 export { Stepper } from "./quantity-control";
+function ProductGap() {
+  return <View style={{ height: 12 }} />;
+}
 function NotificationsSheet({
   open,
   onClose,
@@ -165,19 +169,25 @@ export function HomeScreen() {
     ]);
     return { ...s, ...c };
   }, [epoch]);
-  const result = useLoad<{ products: Product[]; total: number }>(
-    () =>
-      api.get(
-        `/api/catalog/products?limit=30&offset=${offset}&q=${encodeURIComponent(debounced)}&categoryId=${category}`,
-      ),
-    [category, debounced, offset, epoch],
-  );
+  const result = useLoad<{ products: Product[]; total: number }>(async () => {
+    const data = await api.get<{ products: Product[]; total: number }>(
+      `/api/catalog/products?limit=30&offset=${offset}&q=${encodeURIComponent(debounced)}&categoryId=${category}`,
+    );
+    rememberProducts(data.products);
+    return data;
+  }, [category, debounced, offset, epoch]);
   const columns =
     width >= 1000 ? 4 : width >= 650 ? 3 : fontScale > 1.3 ? 1 : 2;
   const contentWidth = Math.min(width, 1100),
     cardWidth = (contentWidth - 44 - (columns - 1) * 12) / columns;
+  const renderProduct = useCallback(
+    ({ item, index }: { item: Product; index: number }) => (
+      <ProductTile product={item} width={cardWidth} index={index} />
+    ),
+    [cardWidth],
+  );
   const header = (
-    <View style={{ gap: 20, marginBottom: 20 }}>
+    <View style={{ gap: 14, marginBottom: 16 }}>
       <View
         style={{
           flexDirection: "row",
@@ -220,14 +230,10 @@ export function HomeScreen() {
           <Bell size={21} color={C.ink} />
         </Pressable>
       </View>
-      <View>
-        <T size={32} bold style={{ letterSpacing: -1 }}>
-          Hello, {user?.name.split(" ")[0] || "neighbour"}.
-        </T>
-        <T size={13} color={C.muted} style={{ marginTop: 5 }}>
-          A little local goodness for your every day.
-        </T>
-      </View>
+      <T size={14} color={C.muted}>
+        Hello, {user?.name.split(" ")[0] || "neighbour"}. What’s on your list
+        today?
+      </T>
       <SearchInput
         value={search}
         onChangeText={setSearch}
@@ -311,23 +317,70 @@ export function HomeScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ gap: 8 }}
         >
-          <Chip
-            label="All"
-            icon={
-              <ShoppingBag size={17} color={!category ? C.lime : C.forest} />
-            }
-            selected={!category}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="All categories"
+            accessibilityState={{ selected: !category }}
+            style={{
+              width: 84,
+              padding: 8,
+              borderRadius: 20,
+              borderWidth: 1,
+              borderColor: !category ? C.forest : C.line,
+              backgroundColor: !category ? C.mint : C.white,
+              alignItems: "center",
+              gap: 7,
+            }}
             onPress={() => {
               setCategory("");
               setOffset(0);
             }}
-          />
+          >
+            <View
+              style={{
+                width: 64,
+                height: 58,
+                borderRadius: 14,
+                overflow: "hidden",
+              }}
+            >
+              <ProductArt artwork="bag" width={64} height={58} />
+            </View>
+            <T size={11} bold style={{ textAlign: "center" }}>
+              All picks
+            </T>
+          </Pressable>
           {meta.data?.categories.map((c) => (
-            <Chip
+            <Pressable
               key={c.id}
-              label={c.name}
-              icon={
+              accessibilityRole="button"
+              accessibilityLabel={`Category: ${c.name}`}
+              accessibilityState={{ selected: category === c.id }}
+              style={{
+                width: 94,
+                padding: 8,
+                borderRadius: 20,
+                borderWidth: 1,
+                borderColor: category === c.id ? C.forest : C.line,
+                backgroundColor: category === c.id ? C.mint : C.white,
+                alignItems: "center",
+                gap: 7,
+              }}
+              onPress={() => {
+                setCategory(c.id);
+                setOffset(0);
+              }}
+            >
+              <View
+                style={{
+                  width: 76,
+                  height: 58,
+                  borderRadius: 14,
+                  overflow: "hidden",
+                }}
+              >
                 <ProductArt
+                  category={c.name}
                   artwork={
                     /dairy|milk/i.test(c.name)
                       ? "milk"
@@ -343,16 +396,19 @@ export function HomeScreen() {
                                 ? "soap"
                                 : "bag"
                   }
-                  width={30}
-                  height={30}
+                  width={76}
+                  height={58}
                 />
-              }
-              selected={category === c.id}
-              onPress={() => {
-                setCategory(c.id);
-                setOffset(0);
-              }}
-            />
+              </View>
+              <T
+                size={11}
+                bold
+                style={{ textAlign: "center" }}
+                numberOfLines={2}
+              >
+                {c.name}
+              </T>
+            </Pressable>
           ))}
         </ScrollView>
       </View>
@@ -382,6 +438,10 @@ export function HomeScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: C.canvas }}>
       <FlatList
+        initialNumToRender={4}
+        maxToRenderPerBatch={4}
+        windowSize={5}
+        updateCellsBatchingPeriod={40}
         onContentSizeChange={(_, measuredHeight) => {
           contentHeight.current = measuredHeight;
           checkMedia();
@@ -413,7 +473,7 @@ export function HomeScreen() {
           alignSelf: "center",
           paddingBottom: cart.count ? 105 : 24,
         }}
-        ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+        ItemSeparatorComponent={ProductGap}
         ListHeaderComponent={header}
         refreshControl={
           <RefreshControl
@@ -425,9 +485,7 @@ export function HomeScreen() {
             tintColor={C.forest}
           />
         }
-        renderItem={({ item, index }) => (
-          <ProductTile product={item} width={cardWidth} index={index} />
-        )}
+        renderItem={renderProduct}
         ListEmptyComponent={
           result.loading ? (
             <Loading />
@@ -714,6 +772,8 @@ export function CartScreen() {
               }}
             >
               <ProductArt
+                name={line.product.name}
+                category={line.product.category}
                 artwork={line.product.artwork}
                 imageUrl={line.product.imageUrl}
                 width={69}
@@ -984,6 +1044,7 @@ export function OrderDetails({
                 }}
               >
                 <ProductArt
+                  name={p.name}
                   artwork={p.artwork}
                   imageUrl={p.imageUrl}
                   width={49}

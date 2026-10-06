@@ -14,7 +14,12 @@ import {
   OrdersScreen,
   ProfileScreen,
 } from "../../apps/mobile/src/customer";
-import { AuthScreen } from "../../apps/mobile/src/auth-screens";
+import {
+  AuthScreen,
+  ConnectionScreen,
+} from "../../apps/mobile/src/auth-screens";
+import { ProductDetailScreen } from "../../apps/mobile/src/product-detail";
+import { Startup } from "../../apps/mobile/src/brand";
 import { DashboardScreen } from "../../apps/mobile/src/admin-insights";
 import { BottomBar } from "../../apps/mobile/src/bottom-bar";
 import { DialogHost } from "../../apps/mobile/src/dialogs";
@@ -36,7 +41,13 @@ function Preview() {
   return (
     <View style={{ flex: 1, backgroundColor: "#F5F7FB" }}>
       <View key={screen} style={{ flex: 1 }}>
-        {screen === "auth" ? (
+        {screen === "startup" ? (
+          <Startup ready={false} />
+        ) : screen === "connection" ? (
+          <ConnectionScreen />
+        ) : screen === "product" ? (
+          <ProductDetailScreen />
+        ) : screen === "auth" ? (
           <AuthScreen />
         ) : screen === "admin" ? (
           <DashboardScreen onInventory={() => {}} onOrders={() => {}} />
@@ -50,7 +61,9 @@ function Preview() {
           <HomeScreen />
         )}
       </View>
-      {!["auth", "admin"].includes(screen) && (
+      {!["auth", "admin", "startup", "connection", "product"].includes(
+        screen,
+      ) && (
         <BottomBar
           state={
             { index: routes.findIndex((r) => r.name === screen), routes } as any

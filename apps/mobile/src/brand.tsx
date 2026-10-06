@@ -1,13 +1,22 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, Animated, Easing, StyleSheet } from "react-native";
+import {
+  View,
+  Text,
+  Animated,
+  ActivityIndicator,
+  StyleSheet,
+  useWindowDimensions,
+} from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useMotion } from "./motion";
+import { StatusBar } from "expo-status-bar";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export function BrandMark({ size = 48 }: { size?: number }) {
   return (
     <Image
-      source={require("../assets/brand/mark.png")}
+      source={require("../assets/brand/mark.webp")}
       contentFit="contain"
       accessibilityIgnoresInvertColors
       style={{ width: size, height: size }}
@@ -16,79 +25,19 @@ export function BrandMark({ size = 48 }: { size?: number }) {
 }
 
 export function BrandLoader({ size = 52 }: { size?: number }) {
-  const { enabled } = useMotion();
   return (
     <View
       accessibilityRole="progressbar"
       accessibilityLabel="Aone Mart is loading"
-      style={{ width: size, height: size }}
-    >
-      <Image
-        key={enabled ? "moving" : "still"}
-        source={
-          enabled
-            ? require("../assets/brand/loader.gif")
-            : require("../assets/brand/mark.png")
-        }
-        autoplay={enabled}
-        contentFit="contain"
-        cachePolicy="memory"
-        style={{ width: size, height: size }}
-      />
-    </View>
-  );
-}
-
-function StartupLogo() {
-  const { enabled } = useMotion();
-  const [progress] = useState(() => new Animated.Value(0));
-  useEffect(() => {
-    progress.setValue(0);
-    if (!enabled) return;
-    const animation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(progress, {
-          toValue: 1,
-          duration: 1200,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-          isInteraction: false,
-        }),
-        Animated.timing(progress, {
-          toValue: 0,
-          duration: 1200,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-          isInteraction: false,
-        }),
-      ]),
-    );
-    animation.start();
-    return () => animation.stop();
-  }, [enabled, progress]);
-  return (
-    <Animated.View
-      accessibilityRole="progressbar"
-      accessibilityLabel="Opening Aone Mart"
       style={{
-        transform: [
-          {
-            scale: progress.interpolate({
-              inputRange: [0, 1],
-              outputRange: [1, 1.04],
-            }),
-          },
-          {
-            translateY: progress.interpolate({
-              inputRange: [0, 1],
-              outputRange: [0, -5],
-            }),
-          },
-        ],
+        width: size,
+        height: size,
+        alignItems: "center",
+        justifyContent: "center",
       }}
     >
-      <BrandMark size={160} />
-    </Animated.View>
+      <ActivityIndicator size={size > 40 ? "large" : "small"} color="#08786B" />
+    </View>
   );
 }
 
@@ -105,8 +54,8 @@ export function Startup({
     if (!ready || !onFinished || !active) return;
     const animation = Animated.timing(opacity, {
       toValue: 0,
-      duration: reduced ? 0 : 260,
-      delay: reduced ? 0 : 350,
+      duration: reduced ? 0 : 160,
+      delay: 0,
       useNativeDriver: true,
     });
     animation.start(({ finished }) => {
@@ -114,50 +63,88 @@ export function Startup({
     });
     return () => animation.stop();
   }, [ready, reduced, opacity, active, onFinished]);
+  const { width, height, fontScale } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const compact = height < 650 || fontScale > 1.3;
+  const markSize = compact ? 88 : 120;
   return (
     <Animated.View style={[StyleSheet.absoluteFill, { opacity, zIndex: 20 }]}>
+      <StatusBar style="light" />
       <LinearGradient
-        colors={["#14243D", "#25445D", "#08786B"]}
+        colors={["#14243D", "#18354C", "#08786B"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={{
           flex: 1,
-          alignItems: "center",
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom,
           justifyContent: "center",
-          padding: 30,
+          alignItems: "center",
+          paddingHorizontal: Math.min(28, width * 0.07),
         }}
       >
         <View
           style={{
-            width: 200,
-            height: 200,
-            backgroundColor: "rgba(255,255,255,.96)",
-            borderRadius: 100,
+            width: "100%",
+            maxWidth: 380,
             alignItems: "center",
-            justifyContent: "center",
+            gap: compact ? 12 : 18,
           }}
         >
-          <StartupLogo />
+          <View
+            style={{
+              backgroundColor: "#FFFFFF",
+              padding: 12,
+              borderRadius: compact ? 26 : 34,
+            }}
+          >
+            <BrandMark size={markSize} />
+          </View>
+          <Text
+            style={{
+              fontFamily: "DMSans_700Bold",
+              fontSize: compact ? 28 : 34,
+              lineHeight: compact ? 36 : 42,
+              color: "#FFFFFF",
+              textAlign: "center",
+            }}
+          >
+            aone mart
+          </Text>
+          <Text
+            style={{
+              fontSize: 15,
+              lineHeight: 23,
+              color: "#D6F5A3",
+              textAlign: "center",
+            }}
+          >
+            Apni dukaan. Apna bharosa.
+          </Text>
         </View>
-        <Text
+        <View
           style={{
-            fontSize: 34,
-            fontFamily: "DMSans_700Bold",
-            color: "#FFFFFF",
-            marginTop: 25,
+            position: "absolute",
+            left: 24,
+            right: 24,
+            bottom: insets.bottom + 28,
+            alignItems: "center",
+            gap: 12,
           }}
         >
-          aone mart
-        </Text>
-        <Text style={{ fontSize: 17, color: "#D6F5A3", marginTop: 9 }}>
-          Apni dukaan. Apna bharosa.
-        </Text>
-        <Text
-          accessibilityLiveRegion="polite"
-          style={{ fontSize: 13, color: "#D6F5A3", marginTop: 28 }}
-        >
-          {ready ? "Your mart is ready" : "Opening your neighbourhood mart…"}
-        </Text>
+          {!ready && <ActivityIndicator size="small" color="#D6F5A3" />}
+          <Text
+            accessibilityLiveRegion="polite"
+            style={{
+              fontSize: 12,
+              lineHeight: 20,
+              textAlign: "center",
+              color: "#DCE9EF",
+            }}
+          >
+            {ready ? "Your mart is ready" : "Opening your neighbourhood mart…"}
+          </Text>
+        </View>
       </LinearGradient>
     </Animated.View>
   );

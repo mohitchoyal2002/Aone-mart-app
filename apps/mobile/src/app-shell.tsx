@@ -1,5 +1,5 @@
 import "../global.css";
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import { View, Text, Pressable } from "react-native";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
@@ -21,7 +21,10 @@ function StartupGate({ children }: { children: React.ReactNode }) {
   const [finished, setFinished] = useState(false);
   const finish = useCallback(() => setFinished(true), []);
   return (
-    <View style={{ flex: 1 }}>
+    <View
+      style={{ flex: 1 }}
+      onLayout={() => void SplashScreen.hideAsync().catch(() => {})}
+    >
       {children}
       {!finished && <Startup ready={!loading} onFinished={finish} />}
     </View>
@@ -93,9 +96,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     DMSans_600SemiBold: require("@expo-google-fonts/dm-sans/600SemiBold/DMSans_600SemiBold.ttf"),
     DMSans_700Bold: require("@expo-google-fonts/dm-sans/700Bold/DMSans_700Bold.ttf"),
   });
-  useEffect(() => {
-    if (loaded || error) void SplashScreen.hideAsync().catch(() => {});
-  }, [loaded, error]);
   return (
     <AppErrorBoundary>
       <SafeAreaProvider>
@@ -107,20 +107,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           >
             <StatusBar style="dark" />
             <NavigationBar style="dark" />
-            <SafeAreaView
-              edges={["top", "left", "right"]}
-              style={{ flex: 1, backgroundColor: C.canvas }}
-            >
-              {!loaded && !error ? (
+            {!loaded && !error ? (
+              <View style={{ flex: 1 }}>
                 <Startup ready={false} />
-              ) : (
-                <AuthProvider>
-                  <CartProvider>
-                    <StartupGate>{children}</StartupGate>
-                  </CartProvider>
-                </AuthProvider>
-              )}
-            </SafeAreaView>
+              </View>
+            ) : (
+              <AuthProvider>
+                <CartProvider>
+                  <StartupGate>
+                    <SafeAreaView
+                      edges={["top", "left", "right"]}
+                      style={{ flex: 1, backgroundColor: C.canvas }}
+                    >
+                      {children}
+                    </SafeAreaView>
+                  </StartupGate>
+                </CartProvider>
+              </AuthProvider>
+            )}
             <DialogHost />
             <KeyboardTools />
           </KeyboardProvider>
