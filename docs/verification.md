@@ -1,6 +1,29 @@
-# Verification record — 5 October 2026
+# Verification record — 6 October 2026
 
-## Current release — 1.1.1 / code 7
+## Current release — 1.2.0 / code 8
+
+PRs [#5](https://github.com/mohitchoyal2002/Aone-mart-app/pull/5) and [#6](https://github.com/mohitchoyal2002/Aone-mart-app/pull/6) add automatic photos for image-free imports, photographic category tiles, full-page product details and responsive startup/login layouts. Native video and Three.js start after Play; saved sessions restore before background validation, and product cards/grid rendering are optimized.
+
+| Check | Result and scope |
+| --- | --- |
+| APK source | `ceec3baf8897236f91830011a0b4f661c24a41a3` |
+| Android APK | [Build 37432373954](https://github.com/mohitchoyal2002/Aone-mart-app/actions/runs/37432373954) passed; version 1.2.0/code 8, min API 24, target API 36, ARM64 phone APK |
+| Source checks | 36 API integration checks, 5 upload checks, 5 native compatibility checks and 3 photo checks passed; API/mobile TypeScript, Expo lint and API compilation passed |
+| Phone APK size | 59,880,242 bytes (59.9 MB), 30.75% smaller than the delivered 1.1.1 universal APK; emulator-only libraries are excluded |
+| APK integrity | Transfer ZIP digests and the reconstructed APK v2/v3 signatures verified; SHA-256 `ba3b07399f282cbbc1cb9816aaafcab67a911d7ffe6ec24fdb44a43cf23f5b9a` |
+| Signing | CI preview certificate SHA-256 `fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c`, matching earlier CI builds; release is not debuggable |
+| Native alignment | ZIP 16 KB alignment and all 28 ARM64 ELF load-segment alignments passed |
+| Packaged photos | All 26 referenced WebP files match the source byte for byte. The product library contains 12 384px thumbnails and 12 1024px detail images, totaling 2,180,382 bytes |
+| Phone/QA payload | CI packaging verifies matching application payload, ARM64 library bytes and certificate between the phone APK and universal emulator APK |
+| Browser preview | 320px startup/login and 390px catalog/details reviewed with sample data; cart updates, navigation back, out-of-stock actions and failed external-image fallback passed. Default browsing created no video/canvas |
+| Mixed-name matching | Regression cases cover wheat/milk bread, rice flour, milk biscuits, rice-bran oil and milk soap. The additional bread-route browser recheck was inconclusive because the CLI lost its active page; no visual result is claimed for that recheck |
+| Android 10 / API 29 | [Native run 37434370268](https://github.com/mohitchoyal2002/Aone-mart-app/actions/runs/37434370268) passed 40 checks, including 14 keyboard checks, full-page details/cart, opt-in GPU/video, cold startup, imports and banner uploads; captured product/detail/connection/login screens reviewed |
+| Android 16 / API 36 | Same native run passed 40 checks, including 14 keyboard checks and the same customer/admin/media/import/banner flows; captured product detail and restored-home screens reviewed |
+| Live backend | Vercel production deployment `dpl_FY8yyVmfv3HYNEUuHLdm6tsbyAC7` is READY. Health and the actual store return 200 at `https://api.aoneonlinemart.shop`; unauthenticated product details return 401. Production build checks verified rollback, foreign keys and concurrent reservations |
+
+Automatic images are representative product/category photos, not verified brand packaging. Admin-provided URLs take priority; failed URLs fall back locally. Unknown product names use a neutral grocery image. Sources/license are recorded in `apps/mobile/assets/products/`. Vercel previews lack separate database/auth settings and fail configuration validation; production settings remain scoped to production. No physical-device speed or memory benchmark is claimed.
+
+## Previous release — 1.1.1 / code 7
 
 Banner upload and the premium mobile UI are merged in PRs [#1](https://github.com/mohitchoyal2002/Aone-mart-app/pull/1) and [#2](https://github.com/mohitchoyal2002/Aone-mart-app/pull/2). PR [#4](https://github.com/mohitchoyal2002/Aone-mart-app/pull/4) fixes the native video focus hook: Expo SDK 57 Router has its own navigation context, so the video must import `useIsFocused` from `expo-router`. A regression check uses the real Router context and rejects the previous import.
 
